@@ -1,9 +1,14 @@
 #ifndef MQI_BEAM_MODULE_ION_H
 #define MQI_BEAM_MODULE_ION_H
 
-/// \file
+/// \file mqi_beam_module_ion.hpp
 ///
-/// Interprets DICOM-RT Ion beam module
+/// \brief Interprets DICOM-RT Ion beam modules for plans and treatment records.
+///
+/// This file provides the `beam_module_ion` class, which is responsible for parsing
+/// and managing data from DICOM-RT Ion Plan (RTI) and Ion Beam Treatment Record (RTIBTR)
+/// modules. It extracts information about scan spots, energies, and weights.
+///
 /// \see http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.8.8.25.html for RTI
 /// \see http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.8.8.26.html for RTIBTR
 
@@ -12,71 +17,86 @@
 namespace mqi
 {
 
-/// Scan type from a tag (300A,0308)
+/// \enum SCAN_MODE
+/// \brief Defines the scan mode for an ion beam, based on DICOM tag (300A,0308).
 typedef enum
 {
-    NONE           = 0,
-    UNIFORM        = 1,
-    MODULATED      = 2,
-    MODULATED_SPEC = 3
+    NONE           = 0, ///< No scan mode specified.
+    UNIFORM        = 1, ///< Uniform scanning.
+    MODULATED      = 2, ///< Modulated scanning.
+    MODULATED_SPEC = 3  ///< Modulated scanning with specific parameters.
 } SCAN_MODE;
 
-    /* Log file related data type */
-    /* Added at 2023-11-02 by Chanil Jeon of SMC */
-    // Data type for each field
-    // Data type for each energy layer
+/// \struct logfile_t
+/// \brief Represents data for a single field in a treatment log file.
+/// \note Added by Chanil Jeon of SMC (2023-11-02).
 struct logfile_t
-    {
-        std::vector<float> posX;
-        std::vector<float> posY;
-        std::vector<int> muCount;
-    };
-    
+{
+    std::vector<float> posX;    ///< X-positions of spots.
+    std::vector<float> posY;    ///< Y-positions of spots.
+    std::vector<int>   muCount; ///< Monitor units or particle counts for each spot.
+};
+
+/// \struct logfiles_t
+/// \brief Represents data for all energy layers in a treatment log file.
+/// \note Added by Chanil Jeon of SMC (2023-11-02).
 struct logfiles_t
-    {
-        std::vector<std::vector<float>> beamEnergyInfo;
-        std::vector<std::vector<logfile_t>> beamInfo;
-    };
+{
+    std::vector<std::vector<float>>   beamEnergyInfo; ///< Information about beam energy for each layer.
+    std::vector<std::vector<logfile_t>> beamInfo;       ///< Detailed spot information for each layer.
+};
 
 /// \class beam_module_ion
-///  A class for the RTION beams (plan & treatment record)
-
+/// \brief A class for handling RT-ION beams from DICOM plans and treatment records.
+///
+/// This class inherits from `beam_module` and specializes in parsing the Ion Control
+/// Point Sequence from DICOM-RT Ion objects. It extracts all necessary parameters for
+/// simulating a pencil beam scanning treatment, including spot positions, energies,
+/// FWHM, and meterset weights.
 class beam_module_ion : public beam_module
 {
 public:
-    /// User-defined type for a spot
+    /// \struct spot
+    /// \brief A user-defined type representing a single scan spot.
     typedef struct {
-        float e;          ///< The energy in MeV
-        float x;          ///< The x-position in mm
-        float y;          ///< The y-position in mm
-        float fwhm_x;     ///< The full-width-half maximum for x
-        float fwhm_y;     ///< The full-width-hafl maximum for y
-        float meterset;   ///< The meterset weight, e.g.,MU or NP.
+        float e;        ///< The spot energy in MeV.
+        float x;        ///< The x-position in mm.
+        float y;        ///< The y-position in mm.
+        float fwhm_x;   ///< The Full-Width at Half-Maximum in the x-direction.
+        float fwhm_y;   ///< The Full-Width at Half-Maximum in the y-direction.
+        float meterset; ///< The meterset weight (e.g., MU or number of particles).
     } spot;
 
-    /// SMC Log-file based MC simulation implementation
-    /// Added in 2023
+    /// \struct logspot
+    /// \brief Represents a single spot from a treatment log file for MC simulation.
+    /// \note Added in 2023 for SMC Log-file based MC simulation.
     typedef struct {
-        float e;          ///< The energy in MeV
-        float x;          ///< The x-position in mm
-        float y;          ///< The y-position in mm
-        float muCount;    ///< Particle count of MC
+        float e;       ///< The spot energy in MeV.
+        float x;       ///< The x-position in mm.
+        float y;       ///< The y-position in mm.
+        float muCount; ///< The particle count for Monte Carlo simulation.
     } logspot;
 
 protected:
-    /// Number of spots as a function of layer-id
+    /// \brief A vector containing the number of spots in each energy layer.
     std::vector<int> nb_spots_per_layer_;
 
-    /// All spots in delivery order.
+    /// \brief A vector containing all spots in the order they are delivered.
     std::vector<spot> sequence_;
 
-    /// Name of beam model
+    /// \brief The name of the beam model or tune ID.
     std::string tune_id_;
 
 public:
-    /// Constructs beam module for RT-Ion
-    /// \param d DICOM dataset of either C.8.8.25-1 (plan) or C.8.8.26-1 (record)
-    /// \param m a modality type, e.g., ION Plan or ION Record
+    /// \brief Constructs a beam module for RT-Ion.
+    ///
+    /// This constructor parses the provided DICOM dataset to extract the ion beam
+    /// parameters. It handles both plan (IONPLAN) and treatment record (IONRECORD)
+    /// modalities.
+    ///
+    /// \param d A pointer to the DICOM dataset, which should be an item from the
+    ///          IonBeamSequence for a plan (C.8.8.25-1) or a record (C.8.8.26-1).
+    /// \param m The modality type, which must be either `IONPLAN` or `IONRECORD`.
     beam_module_ion(const mqi::dataset* d, mqi::modality_type m) : beam_module(d, m) {
         /// Initializes containers
         std::vector<int>         nb_pts(1);
@@ -127,30 +147,40 @@ public:
         }   //per layer
     }
 
-    /// Destructor
+    /// \brief Destroys the beam_module_ion object.
     ~beam_module_ion() {
         ;
     }
 
-    /// Returns the vector pointer for number of spots as a function of layer-id
+    /// \brief Returns a constant pointer to the vector of spot counts per layer.
+    ///
+    /// \return A pointer to a vector where each element is the number of spots
+    ///         in the corresponding energy layer.
     const std::vector<int>*
     get_nb_spots_per_layer(void) const {
         return &nb_spots_per_layer_;
     }
 
-    /// Returns a pointer of spot-sequence vector
+    /// \brief Returns a constant pointer to the spot sequence vector.
+    ///
+    /// \return A pointer to a vector containing all the spots in delivery order.
     const std::vector<spot>*
     get_sequence(void) const {
         return &sequence_;
     }
 
-    /// Returns tune-id
+    /// \brief Returns the tune ID of the beam model.
+    ///
+    /// \return A constant string containing the tune ID.
     const std::string
     get_tune_id(void) const {
         return tune_id_;
     }
 
-    /// Prints out spot-sequence
+    /// \brief Prints the details of the spot sequence to the console.
+    ///
+    /// This method iterates through the spot sequence and prints the energy, position,
+    /// FWHM, and meterset weight for each spot. Useful for debugging.
     void
     dump() const {
         std::cout << "dump:spotmap, size:" << sequence_.size() << std::endl;
