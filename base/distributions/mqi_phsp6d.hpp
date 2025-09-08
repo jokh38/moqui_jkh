@@ -1,62 +1,71 @@
 #ifndef MQI_PHSP6D_H
 #define MQI_PHSP6D_H
 
-/// \file
+/// \file mqi_phsp6d.hpp
 ///
-/// Distribution functions (meta-header file for all distributions)
+/// \brief Defines a 6-dimensional phase-space probability distribution function.
+///
+/// This file contains the `phsp_6d` class, which models the 6D phase space
+/// (position and direction) of a particle beam, typically for a single spot.
+/// It assumes a Gaussian distribution for the phase-space variables and allows
+/// for correlation between position and divergence.
 
 #include <moqui/base/distributions/mqi_pdfMd.hpp>
 
 namespace mqi
 {
 /// \class phsp_6d
+/// \brief A 6-dimensional PDF for phase-space variables (x, y, z, x', y', z').
 ///
-/// 6-dimensional uniform pdf for phase-space variables for a spot
-//  phase-space variables are position (x,y,z) and direction (x',y',z')
-/// \tparam T type of return value
+/// This class models a 6D Gaussian distribution for a beamlet or spot. It takes into
+/// account the mean and standard deviation for each of the 6 phase-space variables,
+/// as well as the correlation coefficients (rho) between the spatial (x, y) and
+/// angular (x', y') components.
+///
+/// \tparam T The data type of the phase-space variables (e.g., float, double).
 template<typename T>
 class phsp_6d : public pdf_Md<T, 6>
 {
-
-    /// correlations for x-x' and y-y' respectively
-    std::array<T, 2> rho_;   ///< For X,Y
+private:
+    /// \brief Correlation coefficients for (x, x') and (y, y').
+    std::array<T, 2> rho_;
 
 public:
-    /// Random engine and distribution function
-    //    std::default_random_engine  gen_;
+    /// \brief The C++ standard library normal distribution function object (mean=0, std=1).
     std::normal_distribution<T> func_;
 
-    /// Constructor to initializes mean, sigma, rho, and random engine
-    /// \param m[0,1,2]: mean spot-position  of x, y, z
-    /// \param m[3,4,5]: mean spot-direction of x', y', z'.
-    /// \param s[0,1,2]: std  spot-position of x,y,z -> spot-size
-    /// \param s[3,4,5]: std  spot-direction of x,y,z. s[5] is ignored but calculated internally
-    /// \param r[0] : x, xp correlation
-    /// \param r[1] : y, yp correlation
-    /// \note seed setup needs to be done by public method
-    /// gen_.seed(from outside, topas or UI); //Ideally set from TOPAS?
+    /// \brief Constructs a new 6D phase-space distribution.
+    ///
+    /// \param m An array containing the mean values for (x, y, z, x', y', z').
+    /// \param s An array containing the standard deviations for (x, y, z, x', y', z').
+    /// \param r An array containing the correlation coefficients rho(x,x') and rho(y,y').
     CUDA_HOST_DEVICE
     phsp_6d(std::array<T, 6>& m, std::array<T, 6>& s, std::array<T, 2>& r) :
         pdf_Md<T, 6>(m, s), rho_(r) {
-        //#if !defined(__CUDACC__)
-        //        gen_.seed(std::chrono::system_clock::now().time_since_epoch().count());
-        //        gen_.seed(1000);
         func_ = std::normal_distribution<T>(0, 1);
-        //#endif
     }
 
-    /// Constructor to initializes mean, sigma, rho, and random engine
+    /// \brief Constructs a new 6D phase-space distribution from constant references.
+    ///
+    /// \param m A const reference to an array containing the mean values.
+    /// \param s A const reference to an array containing the standard deviations.
+    /// \param r A const reference to an array containing the correlation coefficients.
     CUDA_HOST_DEVICE
-    phsp_6d(const std::array<T, 6>& m, const std::array<T, 6>& s, const std::array<T, 6>& r) :
+    phsp_6d(const std::array<T, 6>& m, const std::array<T, 6>& s, const std::array<T, 2>& r) :
         pdf_Md<T, 6>(m, s), rho_(r) {
-        //#if !defined(__CUDACC__)
-        //        gen_.seed(std::chrono::system_clock::now().time_since_epoch().count());
-        //        gen_.seed(1000);
         func_ = std::normal_distribution<T>(0, 1);
-        //#endif
     }
 
-    /// Sample 6 phase-space variables and returns
+    /// \brief Samples the 6D phase-space distribution.
+    ///
+    /// This method generates a random 6D phase-space vector. It first samples
+    /// independent standard normal variables and then transforms them using the
+    /// specified means, standard deviations, and correlation coefficients to produce
+    /// the final correlated phase-space coordinates. The z-direction cosine (phsp[5])
+    /// is calculated to ensure the direction vector is normalized.
+    ///
+    /// \param rng A pointer to a random number engine.
+    /// \return An array containing the sampled (x, y, z, x', y', z') values.
     CUDA_HOST_DEVICE
     virtual std::array<T, 6>
     operator()(std::default_random_engine* rng) {
@@ -65,7 +74,7 @@ public:
         T                Vx   = func_(*rng);
         T                Uy   = func_(*rng);
         T                Vy   = func_(*rng);
-        T                Uz   = func_(*rng);   //T Vz = func_(rng);
+        T                Uz   = func_(*rng);
         phsp[0] += pdf_Md<T, 6>::sigma_[0] * Ux;
         phsp[1] += pdf_Md<T, 6>::sigma_[1] * Uy;
         phsp[2] += pdf_Md<T, 6>::sigma_[2] * Uz;
@@ -77,31 +86,6 @@ public:
         phsp[5] = -1.0 * std::sqrt(1.0 - phsp[3] * phsp[3] - phsp[4] * phsp[4]);
         return phsp;
     };
-
-    //    //// for Raystation
-    //    /// Sample 6 phase-space variables and returns
-    //    CUDA_HOST_DEVICE
-    //    virtual std::array<T, 6>
-    //    operator()(std::default_random_engine* rng) {
-    //        std::array<T, 6> phsp = pdf_Md<T, 6>::mean_;
-    //        T                Ux   = func_(*rng);
-    //        T                Vx   = func_(*rng);
-    //        T                Uy   = func_(*rng);
-    //        T                Vy   = func_(*rng);
-    //        T                Uz   = func_(*rng);   //T Vz = func_(rng);
-    //        phsp[0] += pdf_Md<T, 6>::sigma_[0] * Ux;
-    //        phsp[1] += pdf_Md<T, 6>::sigma_[1] * Uy;
-    //        phsp[2] += pdf_Md<T, 6>::sigma_[2] * Uz;
-    //
-    //        phsp[3] += (pdf_Md<T, 6>::sigma_[3] * Vx + pdf_Md<T, 6>::sigma_[0] * Ux * rho_[0]);
-    //        phsp[4] += (pdf_Md<T, 6>::sigma_[4] * VY + pdf_Md<T, 6>::sigma_[1] * Uy * rho_[1]);
-    //        //        phsp[3] +=
-    //        //          pdf_Md<T, 6>::sigma_[3] * (rho_[0] * Ux + Vx * std::sqrt(1.0 - rho_[0] * rho_[0]));
-    //        //        phsp[4] +=
-    //        //          pdf_Md<T, 6>::sigma_[4] * (rho_[1] * Uy + Vy * std::sqrt(1.0 - rho_[1] * rho_[1]));
-    //        phsp[5] = -1.0 * std::sqrt(1.0 - phsp[3] * phsp[3] - phsp[4] * phsp[4]);
-    //        return phsp;
-    //    };
 };
 
 }   // namespace mqi

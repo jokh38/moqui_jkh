@@ -1,9 +1,12 @@
 #ifndef MQI_CONST1D_H
 #define MQI_CONST1D_H
 
-/// \file
+/// \file mqi_const_1d.hpp
 ///
-/// Distribution functions (meta-header file for all distributions)
+/// \brief Defines a 1-dimensional constant probability distribution function.
+///
+/// This file contains the `const_1d` class, which represents a Dirac delta
+/// distribution. When sampled, it always returns the same constant value.
 
 #include <random>
 #include <functional>
@@ -23,16 +26,22 @@
 namespace mqi{
 
 /// \class const_1d
+/// \brief A 1-dimensional constant probability distribution function (PDF).
 ///
-/// 1-dimensional const pdf.
-/// \tparam T type of return value
-/// \note sigam values are ignored
+/// This class inherits from `pdf_Md` and models a 1D distribution that always
+/// returns a constant value (the mean). The standard deviation parameter is ignored.
+/// It is useful for representing fixed-value parameters, such as a monoenergetic beam.
+///
+/// \tparam T The data type of the return value (e.g., float, double).
 template<typename T>
 class const_1d : public pdf_Md<T,1> {
 
 public:
 
-    /// Constructor
+    /// \brief Constructs a new 1D constant distribution.
+    ///
+    /// \param m An array containing the mean value of the distribution.
+    /// \param s An array containing the standard deviation (ignored).
     CUDA_HOST_DEVICE
     const_1d(
         std::array<T,1>& m,
@@ -40,7 +49,10 @@ public:
         : pdf_Md<T,1>(m,s)
     {;}
 
-    /// Constructor
+    /// \brief Constructs a new 1D constant distribution from constant references.
+    ///
+    /// \param m A const reference to an array containing the mean value.
+    /// \param s A const reference to an array containing the standard deviation (ignored).
     CUDA_HOST_DEVICE
     const_1d(
         const std::array<T,1>& m,
@@ -48,7 +60,13 @@ public:
         : pdf_Md<T,1>(m,s)
     {;}
 
-    /// Returns mean_
+    /// \brief Samples the distribution.
+    ///
+    /// This function always returns the mean value of the distribution, effectively
+    /// sampling from a Dirac delta function.
+    ///
+    /// \param rng A pointer to a random number engine (unused).
+    /// \return An array containing the mean value.
     CUDA_HOST_DEVICE
     virtual
     std::array<T,1>
