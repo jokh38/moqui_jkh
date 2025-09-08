@@ -1,9 +1,13 @@
-#ifndef MQI_DATASET_H
-#define MQI_DATASET_H
-
 /// \file
 ///
-/// Header of the mqi::dataset class
+/// \brief Defines a simplified interface for accessing DICOM datasets.
+///
+/// This file contains the definition of the `mqi::dataset` class, which provides
+/// a wrapper around the `gdcm::DataSet` to simplify accessing and retrieving
+/// values from DICOM files, especially those with nested sequences.
+
+#ifndef MQI_DATASET_H
+#define MQI_DATASET_H
 
 #include <algorithm>
 #include <array>
@@ -27,33 +31,43 @@
 namespace mqi
 {
 
-/// Enumerate for modality type (0x0008,0x0060)
+/// \enum modality_type
+/// \brief Enumerates DICOM modality types based on the Modality (0x0008, 0x0060) tag.
 typedef enum
 {
-    RTPLAN,      //< RT Plan
-    IONPLAN,     //< RT-Ion Plan
-    RTRECORD,    //< RT Record
-    IONRECORD,   //< RT-Ion Record
-    RTIMAGE,     //< RT Image (CT)
-    RTSTRUCT,    //< RT Struct
-    RTDOSE,      //< RT Dose
-    UNKNOWN_MOD
+    RTPLAN,      ///< Radiation Therapy Plan
+    IONPLAN,     ///< Ion Therapy Plan
+    RTRECORD,    ///< Radiation Therapy Treatment Record
+    IONRECORD,   ///< Ion Therapy Treatment Record
+    RTIMAGE,     ///< Radiation Therapy Image (e.g., CT)
+    RTSTRUCT,    ///< Radiation Therapy Structure Set
+    RTDOSE,      ///< Radiation Therapy Dose
+    UNKNOWN_MOD  ///< Unknown or unspecified modality
 } modality_type;
 
-/// Type of beam id, whether number or name
+/// \struct beam_id_type
+/// \brief Represents a beam identifier, which can be either a number or a string.
 struct beam_id_type {
+    /// \enum
+    /// \brief The type of the beam identifier.
     enum
     {
-        NUM,
-        STR
+        NUM, ///< The identifier is a number.
+        STR  ///< The identifier is a string.
     } type;
+    /// \union
+    /// \brief The value of the beam identifier.
     union {
-        int         number;
-        const char* name;
+        int         number; ///< The numeric identifier.
+        const char* name;   ///< The string identifier.
     };
 };
 
-/// A map for sequential tags per modality types, RTPLAN, IONPLAN, IONRECORD.
+/// \brief A map defining sequence tags for different DICOM modalities.
+///
+/// This map provides a convenient way to look up the `gdcm::Tag` for common
+/// sequences (like beam or control point sequences) based on the modality
+/// of the DICOM file (e.g., RTPLAN, IONPLAN).
 static const std::map<const modality_type, const std::map<const std::string, const gdcm::Tag>>
   seqtags_per_modality = {
       //modality, seq_name, tag
@@ -87,47 +101,36 @@ static const std::map<const modality_type, const std::map<const std::string, con
   };
 
 /// \class dataset
-/// mqi::data was written to provide the access to gdcm's Nested Dataset,
-/// i.e., GetItem() is removed.
-/// In RTI, we get values from either tag or keyword.
-/// We converts decimal strings to float by default.
-/// Example:
-/// std::vector<int> tmp;
-/// block_ds->get_values("NumberOfBlocks", tmp);
-/// or equivalent to
-/// block_ds->get_values(gdcm::Tag(0x300a,0x00f0), tmp);
-/// Access to an internal dataset. Usual GDCM way.
+/// \brief A wrapper for `gdcm::DataSet` to simplify access to DICOM data elements and sequences.
 ///
-/// GDCM ways were
-/// const gdcm::DataElement &beamsq = plan_gdcm_ds_.GetDataElement( gdcm::Tag() );
-/// gdcm::SmartPointer<gdcm::SequenceOfItems> sqi = beamsq.GetValueAsSQ();
-/// const gdcm::Item &beam = sqi->GetItem(0);
-/// In RT-Ion interface, we get dataset directly.
-/// Use '(' and ')' for sequence access. return mqi::dataset*
-/// Use '[' and ']' for DataElement access
-/// Example:
-/// const dataset* beam_ds = plan_ds_("IonBeamSequence")
-/// or
-/// const dataset* beam_ds = plan_ds_(gdcm::Tag(0x300a,0x03a2))
-/// \note
-/// Known-issues:
-///  linker caused error of dupulication because this initialization is done in header...
-///   const gdcm::Dicts& dcm_object::dicts_ = gdcm::Global::GetInstance().GetDicts();
-
+/// The `dataset` class provides an intuitive interface for querying DICOM data.
+/// It allows accessing data elements by tag or keyword using the `[]` operator,
+/// and accessing nested datasets within sequences using the `()` operator.
+/// It also includes methods for converting DICOM data values into standard C++ types.
+///
+/// Example Usage:
+/// ```cpp
+/// // Get a value by keyword
+/// std::vector<int> num_blocks;
+/// block_ds->get_values("NumberOfBlocks", num_blocks);
+///
+/// // Access a sequence by keyword
+/// const std::vector<const dataset*> beam_datasets = plan_ds("IonBeamSequence");
+/// ```
 class dataset
 {
 protected:
-    /// Tag, Name, and dataset container (recursive)
+    ///< A lookup table for nested datasets, mapping tag and keyword to a vector of child datasets.
     std::vector<std::tuple<const gdcm::Tag, const std::string, std::vector<const dataset*>>>
       ds_lut_;
 
-    //const gdcm::DataSet& didn't work. segmentfault
-    const gdcm::DataSet gdcm_ds_;   ///< A set of DataElements (attributes)
+    ///< The underlying GDCM dataset.
+    const gdcm::DataSet gdcm_ds_;
 
 public:
-    /// Fill ds_lut_ for given gdcm::Dataset
-    /// \param d gdcm::DataSet
-    /// \param include_sq option for reading SQ (sequence) recursively.
+    /// \brief Constructs a dataset object from a `gdcm::DataSet`.
+    /// \param[in] d The `gdcm::DataSet` to wrap.
+    /// \param[in] include_sq If true, recursively processes sequences to build the `ds_lut_`.
     dataset(const gdcm::DataSet& d, const bool include_sq = true) : gdcm_ds_(d) {
         const gdcm::Dicts& dicts = gdcm::Global::GetInstance().GetDicts();
 
@@ -151,11 +154,9 @@ public:
         }   //gdcm_ds_
     }
 
-    /// Access to a DataElement with a tag
-    /// \param t gdcm::Tag&
-    /// \return a constant reference of gdcm::DataElement
-    /// \return empty DataElement if not found
-    /// \note it seems better to return copy object or reference?
+    /// \brief Accesses a `gdcm::DataElement` by its tag.
+    /// \param[in] t The `gdcm::Tag` of the data element.
+    /// \return A constant reference to the `gdcm::DataElement`. Returns an empty element if not found.
     const gdcm::DataElement&
     operator[](const gdcm::Tag& t) const {
         if (gdcm_ds_.FindDataElement(t) && !gdcm_ds_.GetDataElement(t).IsEmpty()) {
@@ -167,10 +168,9 @@ public:
         }
     }
 
-    /// Access to a DataElement with a tag's keyword
-    /// \param keyword tag's keyword in string
-    /// \return a constant reference of gdcm::DataElement
-    /// \return empty DataElement if not found
+    /// \brief Accesses a `gdcm::DataElement` by its keyword.
+    /// \param[in] keyword The keyword of the data element as a C-style string.
+    /// \return A constant reference to the `gdcm::DataElement`. Returns an empty element if not found.
     const gdcm::DataElement&
     operator[](const char* keyword) const {
         std::string        tmp(keyword);
@@ -185,15 +185,9 @@ public:
         return empty;
     }
 
-    /// Access dataset container with a Tag
-    /// \param t gdcm tag
-    /// \return a dataset container
-    /// \return empty if not found
-    /// \note none of these worked.
-    /// const std::vector<const dataset*>& operator()(const std::string& s)
-    /// std::vector<const dataset*> operator()(const std::string& s)
-    /// std::vector<const dataset*> operator()(const std::string& s)
-    /// std::vector<const dataset*> operator()(const char* s) const {
+    /// \brief Accesses a sequence of nested datasets by its tag.
+    /// \param[in] t The `gdcm::Tag` of the sequence.
+    /// \return A vector of pointers to the constant `dataset` objects within the sequence. Returns an empty vector if not found.
     std::vector<const dataset*>
     operator()(const gdcm::Tag& t) const {
         for (auto& i : ds_lut_)
@@ -202,10 +196,9 @@ public:
         return empty;
     }
 
-    /// Access dataset container with a Tag keyword
-    /// \param s tag string
-    /// \return a dataset container
-    /// \return empty if not found
+    /// \brief Accesses a sequence of nested datasets by its keyword.
+    /// \param[in] s The keyword of the sequence as a C-style string.
+    /// \return A vector of pointers to the constant `dataset` objects within the sequence. Returns an empty vector if not found.
     std::vector<const dataset*>
     operator()(const char* s) const {
         std::string tmp(s);
@@ -216,7 +209,9 @@ public:
         return empty;
     }
 
-    /// Destructor
+    /// \brief Destructor.
+    ///
+    /// Cleans up the dynamically allocated nested `dataset` objects.
     ~dataset() {
         for (auto& i : ds_lut_) {
             for (auto& j : std::get<2>(i)) {
@@ -227,7 +222,9 @@ public:
         ds_lut_.clear();
     }
 
-    /// Print out all DataElement in this dataset resursively.
+    /// \brief Prints all data elements in the dataset to the console.
+    ///
+    /// This method is useful for debugging and inspecting the content of a dataset.
     void
     dump() const {
         const gdcm::Dicts& dicts = gdcm::Global::GetInstance().GetDicts();
@@ -246,13 +243,12 @@ public:
         std::cout << std::endl;
     }
 
-    /// Get DICOM values in a float vector
-    /// \param bv pointer to ByteValue
-    /// \param vr DICOM Value Representation: http://dicom.nema.org/dicom/2013/output/chtml/part05/sect_6.2.html
-    /// \param vm DICOM Value Multiplicity: http://dicom.nema.org/dicom/2013/output/chtml/part05/sect_6.4.html
-    /// \param vl Value length
-    /// \param res reference to a "float" container for dicom values.
-    /// \return void
+    /// \brief Extracts values from a `gdcm::ByteValue` into a vector of floats.
+    /// \param[in] bv Pointer to the `gdcm::ByteValue` containing the data.
+    /// \param[in] vr The Value Representation (VR) of the data.
+    /// \param[in] vm The Value Multiplicity (VM) of the data.
+    /// \param[in] vl The Value Length (VL) of the data.
+    /// \param[out] res A reference to a vector of floats to store the results.
     void
     get_values(const gdcm::ByteValue* bv,
                const gdcm::VR         vr,
@@ -282,13 +278,13 @@ public:
         }
     }
 
-    /// Get DICOM values in a integer vector
-    /// \param bv pointer to ByteValue
-    /// \param vr DICOM Value Representation: http://dicom.nema.org/dicom/2013/output/chtml/part05/sect_6.2.html
-    /// \param vm DICOM Value Multiplicity: http://dicom.nema.org/dicom/2013/output/chtml/part05/sect_6.4.html
-    /// \param vl Value length
-    /// \param res reference to a "int" container for dicom values.
-    /// \return void
+    /// \brief Extracts values from a `gdcm::ByteValue` into a vector of integers.
+    /// \param[in] bv Pointer to the `gdcm::ByteValue` containing the data.
+    /// \param[in] vr The Value Representation (VR) of the data.
+    /// \param[in] vm The Value Multiplicity (VM) of the data.
+    /// \param[in] vl The Value Length (VL) of the data.
+    /// \param[out] res A reference to a vector of integers to store the results.
+    /// \param[in] show (Unused) A boolean flag.
     void
     get_values(const gdcm::ByteValue* bv,
                const gdcm::VR         vr,
@@ -325,13 +321,12 @@ public:
         }
     }
 
-    /// Get DICOM values in a string vector
-    /// \param bv pointer to ByteValue
-    /// \param vr DICOM Value Representation: http://dicom.nema.org/dicom/2013/output/chtml/part05/sect_6.2.html
-    /// \param vm DICOM Value Multiplicity: http://dicom.nema.org/dicom/2013/output/chtml/part05/sect_6.4.html
-    /// \param vl Value length
-    /// \param res reference to a "string" container for dicom values.
-    /// \return void
+    /// \brief Extracts values from a `gdcm::ByteValue` into a vector of strings.
+    /// \param[in] bv Pointer to the `gdcm::ByteValue` containing the data.
+    /// \param[in] vr The Value Representation (VR) of the data.
+    /// \param[in] vm The Value Multiplicity (VM) of the data.
+    /// \param[in] vl The Value Length (VL) of the data.
+    /// \param[out] res A reference to a vector of strings to store the results.
     void
     get_values(const gdcm::ByteValue*    bv,
                const gdcm::VR            vr,
@@ -359,11 +354,10 @@ public:
         }
     }
 
-    /// A template method to get DICOM values in a 'T' type vector
-    /// \param keywoard Tag string
-    /// \param result reference to a "T" container for dicom values.
-    /// \tparam T type of contents.
-    /// \return void
+    /// \brief A template method to get values for a given keyword.
+    /// \tparam T The type of the values to retrieve (e.g., int, float, std::string).
+    /// \param[in] keyword The keyword of the data element.
+    /// \param[out] result A reference to a vector of type T to store the results.
     template<typename T>
     void
     get_values(const char* keyword, std::vector<T>& result) const {
@@ -380,11 +374,10 @@ public:
         this->get_values(el.GetByteValue(), entry.GetVR(), entry.GetVM(), el.GetVL(), result);
     }
 
-    /// A template method to get gdcm::DataElement in a 'T' type vector
-    /// \param el DataElement
-    /// \param result reference to a "T" container for dicom values.
-    /// \tparam T type of contents.
-    /// \return void
+    /// \brief A template method to get values from a `gdcm::DataElement`.
+    /// \tparam T The type of the values to retrieve.
+    /// \param[in] el The `gdcm::DataElement` from which to extract values.
+    /// \param[out] result A reference to a vector of type T to store the results.
     template<typename T>
     void
     get_values(const gdcm::DataElement& el, std::vector<T>& result) const {
@@ -400,7 +393,10 @@ public:
         this->get_values(el.GetByteValue(), entry.GetVR(), entry.GetVM(), el.GetVL(), result);
     }
 
-    /// Prints out DataElement's VR, VM, and VL.
+    /// \brief Prints information about a `gdcm::DataElement`.
+    /// \param[in] el The data element to print.
+    ///
+    /// This method is useful for debugging, showing the keyword, VM, VR, VL, and value of a data element.
     void
     print_dataelement(const gdcm::DataElement& el) const {
         const gdcm::Dicts& dicts = gdcm::Global::GetInstance().GetDicts();

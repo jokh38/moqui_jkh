@@ -1,9 +1,14 @@
+/// \file
+///
+/// \brief Defines a class for handling 3D CT image data.
+///
+/// This file provides the `ct` class, which represents a 3D image grid with
+/// 16-bit integer pixels. It is designed to read and process CT data from
+/// DICOM files, managing the grid structure, pixel data, and relevant metadata.
+
 #ifndef MQI_CT_H
 #define MQI_CT_H
 
-/// \file
-///
-/// A 3D image grid with int16 as a pixel.
 #include <sys/stat.h>
 
 #include "gdcmAttribute.h"
@@ -19,34 +24,44 @@ namespace mqi
 {
 
 /// \class ct
-/// this ct class is a int16_t pixel type.
-/// \tparam R for grid coordinate (float or double) a type of x, y, and z positions
+/// \brief Represents a 3D CT image grid with 16-bit integer pixels.
+/// \tparam R The floating-point type for grid coordinates (e.g., float, double).
+///
+/// This class inherits from `rect3d` and is specialized for handling CT data.
+/// It includes functionality to read a directory of DICOM files, sort them,
+/// extract metadata, and load the pixel data into a 3D grid.
 template<typename R>
 class ct : public rect3d<int16_t, R>
 {
 protected:
-    std::vector<std::string> files_;   ///<  DICOM image files sorted in Z acsending order
+    ///< A vector of DICOM image file paths, sorted in ascending Z-order.
+    std::vector<std::string> files_;
 
-    std::map<std::string, std::string> uid2file_;   ///< SOP instance UID to id in files_
+    ///< A map from SOP Instance UID to the corresponding file path.
+    std::map<std::string, std::string> uid2file_;
 
-    char* ct_dir;   ///< directory for CT files
+    ///< The directory containing the CT files.
+    char* ct_dir;
 
-    R  dx_;   ///< pixel size in X
-    R  dy_;   ///< pixel size in Y
-    R* dz_;   // pixel size in Z, it is array to deal with varying pixel
+    ///< The pixel spacing in the X-dimension.
+    R dx_;
+    ///< The pixel spacing in the Y-dimension.
+    R dy_;
+    ///< An array of pixel spacings in the Z-dimension to handle variable slice thickness.
+    R* dz_;
 
 public:
-    /// Default constructor
+    /// \brief Default constructor.
     CUDA_HOST
     ct() {
         ;
     }
 
-    /// Constructs a rectlinear grid from array of x/y/z with their size
-    /// \param f CT directory
-    /// \param is_print set true if you want to print out files
-    /// \note this method sets only dimensions and extensions.
-    /// \see load_data() to read in pixel data
+    /// \brief Constructs a ct object and initializes its structure from a DICOM directory.
+    /// \param[in] f The path to the directory containing the CT DICOM files.
+    /// \param[in] is_print If true, prints the detected file information to the console.
+    /// \note This constructor sets up the grid dimensions and properties but does not
+    ///       load the pixel data. Call `load_data()` to read the pixel values.
     CUDA_HOST
     ct(std::string f, bool is_print = false) {
         ct_dir = new char[f.length() + 1];
@@ -136,7 +151,11 @@ public:
                   << std::endl;
     }
 
-    /// Load patient's image to volume
+    /// \brief Loads the pixel data from the DICOM files into the grid.
+    ///
+    /// This method reads the pixel data for each slice and populates the `data_`
+    /// member of the base `rect3d` class. It also applies the rescale slope
+    /// and intercept found in the DICOM metadata.
     CUDA_HOST
     virtual void
     load_data() {
@@ -174,7 +193,9 @@ public:
         std::cout << "Reading DICOM directory.. : Patient CT pixel data successfully loaded." << std::endl;
     }
 
-    /// Returns x-index for given x position
+    /// \brief Finds the x-index corresponding to a given x-coordinate.
+    /// \param[in] x The x-coordinate.
+    /// \return The index of the voxel in the x-dimension.
     inline virtual size_t
     find_c000_x_index(const R& x) {
         assert((x >= rect3d<int16_t, R>::x_[0]) &&
@@ -183,7 +204,9 @@ public:
         return floor(x / dx_);
     }
 
-    /// Returns y-index for given y position
+    /// \brief Finds the y-index corresponding to a given y-coordinate.
+    /// \param[in] y The y-coordinate.
+    /// \return The index of the voxel in the y-dimension.
     inline virtual size_t
     find_c000_y_index(const R& y) {
         assert((y >= rect3d<int16_t, R>::y_[0]) &&
@@ -192,46 +215,61 @@ public:
         return floor(y / dy_);
     }
 
+    /// \brief Gets the pixel spacing in the x-dimension.
+    /// \return The pixel spacing in x.
     inline virtual R
     get_dx() {
         return dx_;
     }
 
+    /// \brief Gets the pixel spacing in the y-dimension.
+    /// \return The pixel spacing in y.
     inline virtual R
     get_dy() {
         return dy_;
     }
 
+    /// \brief Gets the array of pixel spacings in the z-dimension.
+    /// \return A pointer to the array of z-spacings.
     inline virtual R*
     get_dz() {
         return dz_;
     }
 
+    /// \brief Sets the pixel spacing in the x-dimension.
+    /// \param[in] dx The new pixel spacing in x.
     inline virtual void
     set_dx(R dx) {
         dx_ = dx;
     }
 
+    /// \brief Sets the pixel spacing in the y-dimension.
+    /// \param[in] dy The new pixel spacing in y.
     inline virtual void
     set_dy(R dy) {
         dy_ = dy;
     }
 
+    /// \brief Sets the array of pixel spacings in the z-dimension.
+    /// \param[in] dz A pointer to the new array of z-spacings.
     inline virtual void
     set_dz(R* dz) {
         dz_ = dz;
     }
+
+    /// \brief Sets the data (incorrectly named, should likely not be used).
+    /// \param[in] dz A pointer to a data array.
     inline virtual void
     set_data(R* dz) {
         dz_ = dz;
     }
 
-    /// A friend function to copy CT's grid information
-    /// \param src CT grid information to be copied
-    /// \param dest rect3d will have same coordinate system with src
-    /// \tparam R0 grid type of CT grid
-    /// \tparam T1 pixel type of dest grid
-    /// \tparam R1 pixel type of dest grid
+    /// \brief A friend function to clone the grid structure of a ct object.
+    /// \tparam R0 The coordinate type of the source ct grid.
+    /// \tparam T1 The pixel type of the destination grid.
+    /// \tparam R1 The coordinate type of the destination grid.
+    /// \param[in] src The source ct object whose structure is to be copied.
+    /// \param[out] dest The destination `rect3d` object that will receive the structure.
     template<typename R0, typename T1, typename R1>
     friend void
     clone_ct_structure(ct<R0>& src, rect3d<T1, R1>& dest);

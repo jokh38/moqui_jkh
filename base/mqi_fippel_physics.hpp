@@ -1,3 +1,6 @@
+/// \file
+/// \brief Implements a physics list for proton transport based on the Fippel model.
+
 #ifndef MQI_FIPPEL_PHYSICS_HPP
 #define MQI_FIPPEL_PHYSICS_HPP
 
@@ -11,20 +14,38 @@
 namespace mqi
 {
 
+/// \class fippel_physics
+/// \brief A physics list implementing the Fippel model for proton transport.
+/// \tparam R The floating-point type for calculations.
+///
+/// This class defines the physical processes and stepping algorithm for simulating
+/// the transport of protons through a medium. It includes models for ionization,
+/// elastic scattering off hydrogen (pp), elastic scattering off other elements (po),
+/// and inelastic scattering off other elements (po).
 template<typename R>
 class fippel_physics : public physics_list<R>
 {
 public:
+    ///< A reference to the physics constants singleton.
     const physics_constants<R>& units = physics_list<R>::units;
 
-    const float max_step        = 1.0;
-    const float max_energy_loss = 0.25;   // ratio
+    ///< The maximum geometric step length in mm.
+    const float max_step = 1.0;
+    ///< The maximum allowed energy loss in a single step, as a fraction of the current energy.
+    const float max_energy_loss = 0.25;
 
+    ///< Tabulated physics model for proton ionization.
     mqi::p_ionization_tabulated<R> p_ion;
-    mqi::pp_elastic_tabulated<R>   pp_e;
-    mqi::po_elastic_tabulated<R>   po_e;
+    ///< Tabulated physics model for proton-proton elastic scattering.
+    mqi::pp_elastic_tabulated<R> pp_e;
+    ///< Tabulated physics model for proton-oxygen elastic scattering.
+    mqi::po_elastic_tabulated<R> po_e;
+    ///< Tabulated physics model for proton-oxygen inelastic scattering.
     mqi::po_inelastic_tabulated<R> po_i;
 
+    /// \brief Default constructor.
+    ///
+    /// Initializes the tabulated physics models with default energy ranges and tables.
     CUDA_HOST_DEVICE
     fippel_physics() :
         p_ion(0.1,
@@ -40,7 +61,8 @@ public:
         ;
     }
 
-    ///<
+    /// \brief Constructor with a specified energy cutoff.
+    /// \param[in] e_cut The energy cutoff for secondary electrons.
     CUDA_HOST_DEVICE
     fippel_physics(R e_cut) :
         physics_list<R>::Te_cut(e_cut), p_ion(0.1,
@@ -57,13 +79,27 @@ public:
         ;
     }
 
-    ///<
+    /// \brief Destructor.
     CUDA_HOST_DEVICE
     ~fippel_physics() {
         ;
     }
 
-    ///< step length
+    /// \brief Determines the step length and samples discrete interactions for a particle track.
+    ///
+    /// This method implements the core stepping logic. It calculates the mean free path (MFP)
+    /// based on the total cross-section of all discrete processes. It then determines the
+    /// next step length, which is the minimum of the MFP, a maximum geometric step length,
+    /// and the distance to the next voxel boundary. If a discrete interaction occurs,
+    /// it samples the specific process and updates the particle's state accordingly.
+    ///
+    /// \param[in,out] trk The particle track to be transported.
+    /// \param[in,out] stk The stack for secondary particles.
+    /// \param[in,out] rng A pointer to the random number generator.
+    /// \param[in] rho_mass The mass density of the current material.
+    /// \param[in] mat The material properties of the current voxel.
+    /// \param[in] distance_to_boundary The distance to the next geometric boundary.
+    /// \param[in] score_local_deposit A flag indicating whether to score local energy deposit.
     CUDA_HOST_DEVICE
     virtual void
     stepping(track_t<R>&       trk,
