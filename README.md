@@ -144,6 +144,10 @@ Contributions to Moqui C++ are welcome! If you would like to contribute, please 
 
 Please ensure that your code adheres to the existing coding style and that you have added appropriate documentation and tests.
 
+### For AI Agents
+
+If you are an AI agent working on this repository, please look for `AGENTS.md` files in the directory structure. These files may contain specific instructions or conventions to follow.
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).

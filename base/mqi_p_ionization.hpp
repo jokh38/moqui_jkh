@@ -1,3 +1,7 @@
+/**
+ * @file
+ * @brief Defines the proton ionization interaction model using tabulated data.
+ */
 #ifndef MQI_P_IONIZATION_HPP
 #define MQI_P_IONIZATION_HPP
 
@@ -6,8 +10,8 @@
 namespace mqi
 {
 
-///< Data table (from Geant4 TestEm0. Ei = 0.1 * MeV,  Ef = 299.6 MeV, dE = 0.5 MeV, Te_cut = 0.1 mm (85.1138 keV)
-///<  - Cross-section (per )  mm2/g
+/// @brief Lookup table for proton ionization cross-sections in water (mm^2/g).
+/// @details Data from Geant4 TestEm0. Ei = 0.1 MeV, Ef = 299.6 MeV, dE = 0.5 MeV, Te_cut = 0.1 mm (85.1138 keV).
 CUDA_CONSTANT const float cs_p_ion_table[600] = {
     0,       0,       0,       0,       0,       0,       0,       0,       0,       0,
     0,       0,       0,       0,       0,       0,       0,       0,       0,       0,
@@ -70,7 +74,8 @@ CUDA_CONSTANT const float cs_p_ion_table[600] = {
     187.185, 187.025, 186.864, 186.705, 186.545, 186.386, 186.228, 186.07,  185.913, 185.756,
     185.599, 185.443, 185.288, 185.133, 184.978, 184.824, 184.67,  184.517, 184.364, 184.211
 };
-////Total stopping power (I=75 eV)  from Geant4
+/// @brief Lookup table for restricted mass stopping power of protons in water (MeV cm^2/g).
+/// @details Data from Geant4 (I=75 eV).
 CUDA_CONSTANT const float restricted_stopping_power_table[600] = {
     96.14890, 37.78070, 25.01300, 19.19030, 15.72410, 13.29680, 11.59950, 10.30940, 9.32706,
     8.52858,  7.87007,  7.30757,  6.82805,  6.41238,  6.04993,  5.73076,  5.44499,  5.18804,
@@ -141,7 +146,8 @@ CUDA_CONSTANT const float restricted_stopping_power_table[600] = {
     0.31787,  0.31755,  0.31723,  0.31691,  0.31660,  0.31628
 };
 
-////Total stopping power (I=75 eV)  from Geant4
+/// @brief Lookup table for proton range in water (mm).
+/// @details Data from Geant4 (I=75 eV).
 CUDA_CONSTANT const float range_steps[600] = {
     0.001391,   0.010586,   0.027285,   0.050344,   0.079284,   0.113983,   0.154354,   0.200174,
     0.251242,   0.307367,   0.368453,   0.434431,   0.505264,   0.580871,   0.661183,   0.746137,
@@ -220,29 +226,42 @@ CUDA_CONSTANT const float range_steps[600] = {
     546.123000, 547.694000, 549.266000, 550.840000, 552.415000, 553.992000, 555.570000, 557.151000
 };
 
-///< delta_ionization
-///< analytical model
+/**
+ * @class p_ionization_tabulated
+ * @brief Implements the ionization interaction for protons using tabulated data.
+ * @tparam R The floating-point type for calculations.
+ * @details This class models both continuous energy loss (CSDA with straggling) and discrete delta electron generation for protons. It uses pre-calculated tables for cross-sections, stopping power, and ranges to improve performance.
+ */
 template<typename R>
 class p_ionization_tabulated : public interaction<R, mqi::PROTON>
 {
-    ///< constant value to calculate scattering angle
-    const R Es = 13.9;   // I 75 eV
-    ///< Cross-section & restricted stopping power
-    ///< Table's energy step: Ei, Ef, dE
-    const R  Ei;
-    const R  Ef;
-    const R  E_step;
-    const R* cs_table;
-    const R* pw_table;
+    const R Es = 13.9;   ///< Constant value to calculate scattering angle (related to I=75eV).
 
-    ///< Energy and range table
-    const R* r_steps;
+    // Table properties
+    const R  Ei;       ///< The minimum energy of the tables.
+    const R  Ef;       ///< The maximum energy of the tables.
+    const R  E_step;   ///< The energy step size of the tables.
+    const R* cs_table;   ///< Pointer to the cross-section table.
+    const R* pw_table;   ///< Pointer to the stopping power table.
+    const R* r_steps;    ///< Pointer to the range table.
 
 public:
+    /**
+     * @brief Constructs a new p_ionization_tabulated object.
+     * @param[in] m The minimum energy of the tables.
+     * @param[in] M The maximum energy of the tables.
+     * @param[in] s The energy step size of the tables.
+     * @param[in] p Pointer to the cross-section table.
+     * @param[in] q Pointer to the stopping power table.
+     * @param[in] r Pointer to the range table.
+     */
     CUDA_HOST_DEVICE
     p_ionization_tabulated(R m, R M, R s, const R* p, const R* q, const R* r) :
         Ei(m), Ef(M), E_step(s), cs_table(p), pw_table(q), r_steps(r) {}
 
+    /**
+     * @brief Destructor.
+     */
     CUDA_HOST_DEVICE
     ~p_ionization_tabulated() {
         cs_table = nullptr;
@@ -250,7 +269,13 @@ public:
         r_steps  = nullptr;
     }
 
-    ///< Cross-section
+    /**
+     * @brief Calculates the total cross-section for delta electron production.
+     * @param[in] rel Relativistic quantities of the proton.
+     * @param[in] mat The material.
+     * @return The cross-section in cm^2.
+     * @details Interpolates the cross-section from the pre-calculated table and scales by material density.
+     */
     CUDA_HOST_DEVICE
     virtual R
     cross_section(const relativistic_quantities<R>& rel, const material_t<R>& mat) {
@@ -266,7 +291,13 @@ public:
         return cs;
     }
 
-    ///< dEdx
+    /**
+     * @brief Calculates the restricted stopping power (-dE/dx).
+     * @param[in] rel Relativistic quantities of the proton.
+     * @param[in] mat The material.
+     * @return The restricted stopping power in MeV/mm.
+     * @details Interpolates the stopping power from the pre-calculated table.
+     */
     CUDA_HOST_DEVICE
     virtual inline R
     dEdx(const relativistic_quantities<R>& rel, const material_t<R>& mat) {
@@ -284,7 +315,12 @@ public:
         return -1.0 * pw;
     }
 
-    ///< sample delta-energy
+    /**
+     * @brief Samples the kinetic energy of a delta electron.
+     * @param[in] Te_max The maximum transferable energy to an electron.
+     * @param[in,out] rng A pointer to the random number generator.
+     * @return The sampled kinetic energy of the delta electron.
+     */
     CUDA_HOST_DEVICE
     inline R
     sample_delta_energy(const R Te_max, const mqi_rng* rng) {
@@ -292,7 +328,15 @@ public:
         return Te_max * this->T_cut / ((1.0 - eta) * Te_max + eta * this->T_cut);
     }
 
-    ///< Energy loss (positive)
+    /**
+     * @brief Calculates the energy loss over a given step length.
+     * @param[in] rel Relativistic quantities of the proton.
+     * @param[in,out] mat The material.
+     * @param[in] step_length The physical step length.
+     * @param[in,out] rng A pointer to the random number generator.
+     * @return The total energy loss (a positive value).
+     * @details This function uses a CSDA approach based on the range-energy tables, with an added Gaussian-distributed energy straggling component.
+     */
     CUDA_HOST_DEVICE
     virtual inline R
     energy_loss(const relativistic_quantities<R>& rel,
@@ -324,7 +368,13 @@ public:
         return ret;
     }
 
-    ///< energy_straggling variance
+    /**
+     * @brief Calculates the variance of the energy straggling.
+     * @param[in] rel Relativistic quantities of the proton.
+     * @param[in] mat The material.
+     * @param[in] step_length The physical step length in water-equivalent path length.
+     * @return The energy straggling variance.
+     */
     CUDA_HOST_DEVICE
     inline R
     energy_straggling(const relativistic_quantities<R>& rel,
@@ -336,10 +386,12 @@ public:
         return O_sq;
     }
 
-    ///< calculate radiation length based on density (mm)
-    ///< TODO: this better to be in material
-    /// rho_mass (g/mm^3)
-    /// From M. Fippel and M. Soukup, Med. Phys. Vol. 31, No. 8, 2004
+    /**
+     * @brief Calculates the radiation length of a material based on its density.
+     * @param[in] density The mass density of the material in g/mm^3.
+     * @return The radiation length in mm.
+     * @details This function uses an empirical formula from Fippel and Soukup (2004).
+     */
     CUDA_HOST_DEVICE
     virtual R
     radiation_length(R density) {
@@ -361,7 +413,15 @@ public:
         return radiation_length_mat;
     }
 
-    ///< CSDA method is special to p_ionization
+    /**
+     * @brief Simulates continuous effects along a step (energy loss and scattering).
+     * @param[in,out] trk The particle track to be updated.
+     * @param[in,out] stk The secondary particle stack.
+     * @param[in,out] rng A pointer to the random number generator.
+     * @param[in] len The step length.
+     * @param[in,out] mat The material.
+     * @details This method calculates the energy loss using a CSDA approach with Gaussian straggling and applies multiple Coulomb scattering. It updates the track's energy, position, and direction.
+     */
     CUDA_HOST_DEVICE
     virtual void
     along_step(track_t<R>&       trk,
@@ -432,8 +492,16 @@ public:
         trk.update_post_vertex_energy(dE * r);
     }
 
-    ///< DoIt method to update track's KE, pos, dir, dE, status
-    ///< compute energy loss, vertex, secondaries
+    /**
+     * @brief Simulates discrete effects at the end of a step (delta electron production).
+     * @param[in,out] trk The particle track to be updated.
+     * @param[in,out] stk The secondary particle stack.
+     * @param[in,out] rng A pointer to the random number generator.
+     * @param[in] len The step length.
+     * @param[in,out] mat The material.
+     * @param[in] score_local_deposit Flag indicating if local energy deposit should be scored.
+     * @details This method samples a delta electron and either adds its energy to the local deposit or creates a new secondary particle on the stack.
+     */
     CUDA_HOST_DEVICE
     virtual void
     post_step(track_t<R>&       trk,
@@ -485,8 +553,12 @@ public:
         trk.update_post_vertex_energy(Te);
     }
 
-    ///< DoIt method to update track's KE, pos, dir, dE, status
-    ///< compute energy loss, vertex, secondaries
+    /**
+     * @brief Performs the final step for a track that deposits the remainder of its energy.
+     * @param[in,out] trk The particle track to be updated.
+     * @param[in,out] mat The material.
+     * @details This function calculates the remaining range of the particle and updates its final position.
+     */
     CUDA_HOST_DEVICE
     virtual void
     last_step(track_t<R>& trk, material_t<R>& mat) {

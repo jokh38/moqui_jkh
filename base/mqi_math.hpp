@@ -1,9 +1,12 @@
+/**
+ * @file
+ * @brief Defines mathematical constants and functions for both CPU and CUDA execution.
+ * @details This header provides a hardware-agnostic API for common mathematical operations
+ * like logarithms, square roots, and random number generation. It uses preprocessor
+ * directives to select the appropriate implementation (standard C++ or CUDA) at compile time.
+ */
 #ifndef MQI_MATH_HPP
 #define MQI_MATH_HPP
-
-/// \file
-///
-/// A header including CUDA related headers and functions
 
 #include <moqui/base/mqi_common.hpp>
 
@@ -14,109 +17,208 @@
 namespace mqi
 {
 
-//const float near_zero = 0.0000001;
-const float near_zero          = 1e-7;
-const float min_step           = 1e-3;
-const float geometry_tolerance = 1e-3;
+const float near_zero          = 1e-7f;      ///< A small value used to avoid floating-point comparison issues.
+const float min_step           = 1e-3f;      ///< The minimum step size for particle transport.
+const float geometry_tolerance = 1e-3f;      ///< A tolerance value for geometry intersection calculations.
+const float m_inf              = -HUGE_VALF; ///< Negative infinity.
+const float p_inf              = HUGE_VALF;  ///< Positive infinity.
 
-///< TODO: CUDA m_inf
-const float m_inf = -1.0 * HUGE_VALF;
-const float p_inf = HUGE_VALF;
-
+/**
+ * @brief Performs 1D linear interpolation.
+ * @tparam T The floating-point type (e.g., float or double).
+ * @param[in] x The point at which to interpolate.
+ * @param[in] x0 The first x-coordinate.
+ * @param[in] x1 The second x-coordinate.
+ * @param[in] y0 The first y-coordinate, corresponding to x0.
+ * @param[in] y1 The second y-coordinate, corresponding to x1.
+ * @return The interpolated y-value at x.
+ */
 template<typename T>
 CUDA_DEVICE inline T
 intpl1d(T x, T x0, T x1, T y0, T y1) {
     return (x1 == x0) ? y0 : y0 + (x - x0) * (y1 - y0) / (x1 - x0);
 }
 
+/**
+ * @brief Calculates the natural logarithm. Wrapper for `log` or `logf`.
+ * @tparam T The floating-point type.
+ * @param[in] s The value.
+ * @return The natural logarithm of s.
+ */
 template<typename T>
 CUDA_DEVICE T
 mqi_ln(T s);
 
+/**
+ * @brief Calculates the square root. Wrapper for `sqrt` or `sqrtf`.
+ * @tparam T The floating-point type.
+ * @param[in] s The value.
+ * @return The square root of s.
+ */
 template<typename T>
 CUDA_HOST_DEVICE T
 mqi_sqrt(T s);
 
+/**
+ * @brief Calculates a number raised to a power. Wrapper for `pow` or `powf`.
+ * @tparam T The floating-point type.
+ * @param[in] s The base.
+ * @param[in] p The exponent.
+ * @return s raised to the power of p.
+ */
 template<typename T>
 CUDA_DEVICE T
 mqi_pow(T s, T p);
 
+/**
+ * @brief Calculates the base-e exponential. Wrapper for `exp` or `expf`.
+ * @tparam T The floating-point type.
+ * @param[in] s The value.
+ * @return e raised to the power of s.
+ */
 template<typename T>
 CUDA_DEVICE T
 mqi_exp(T s);
 
+/**
+ * @brief Calculates the arc cosine. Wrapper for `acos` or `acosf`.
+ * @tparam T The floating-point type.
+ * @param[in] s The value.
+ * @return The arc cosine of s.
+ */
 template<typename T>
 CUDA_DEVICE T
 mqi_acos(T s);
 
+/**
+ * @brief Calculates the cosine. Wrapper for `cos` or `cosf`.
+ * @tparam T The floating-point type.
+ * @param[in] s The value.
+ * @return The cosine of s.
+ */
 template<typename T>
 CUDA_DEVICE T
 mqi_cos(T s);
 
+/**
+ * @brief Calculates the sine. Wrapper for `sin` or `sinf`.
+ * @tparam T The floating-point type.
+ * @param[in] s The value.
+ * @return The sine of s.
+ */
 template<typename T>
 CUDA_DEVICE T
 mqi_sin(T s);
 
+/**
+ * @brief Calculates the absolute value. Wrapper for `abs` or `fabs`.
+ * @tparam T The floating-point type.
+ * @param[in] s The value.
+ * @return The absolute value of s.
+ */
 template<typename T>
 CUDA_DEVICE T
 mqi_abs(T s);
 
+/**
+ * @brief Rounds a number to the nearest integer. Wrapper for `round` or `roundf`.
+ * @tparam T The floating-point type.
+ * @param[in] s The value.
+ * @return The rounded value.
+ */
 template<typename T>
 CUDA_HOST_DEVICE T
 mqi_round(T s);
 
+/**
+ * @brief Calculates the floor of a number. Wrapper for `floor` or `floorf`.
+ * @tparam T The floating-point type.
+ * @param[in] s The value.
+ * @return The floor value.
+ */
 template<typename T>
 CUDA_HOST_DEVICE T
 mqi_floor(T s);
 
+/**
+ * @brief Calculates the ceiling of a number. Wrapper for `ceil` or `ceilf`.
+ * @tparam T The floating-point type.
+ * @param[in] s The value.
+ * @return The ceiling value.
+ */
 template<typename T>
 CUDA_HOST_DEVICE T
 mqi_ceil(T s);
 
+/**
+ * @brief Checks if a number is NaN (Not a Number). Wrapper for `isnan`.
+ * @tparam T The floating-point type.
+ * @param[in] s The value.
+ * @return True if s is NaN, false otherwise.
+ */
 template<typename T>
 CUDA_HOST_DEVICE bool
 mqi_isnan(T s);
 
-/*
-template<typename T>
-CUDA_DEVICE
-T mqi_inf();
-*/
-
-///< To make template for both return type and argument.
-///< 1. return type template
+/**
+ * @struct rnd_return
+ * @brief A helper struct to define the return type for random number generators.
+ * @tparam T The desired floating-point type (float or double).
+ */
 template<class T>
 struct rnd_return {
     typedef T type;
 };
 
+/// @brief Specialization for float.
 template<>
 struct rnd_return<float> {
     typedef float type;
 };
 
+/// @brief Specialization for double.
 template<>
 struct rnd_return<double> {
     typedef double type;
 };
 
-///< 2. distribution funtion template.
-
-///< normal
+/**
+ * @brief Generates a normally distributed random number.
+ * @tparam T The floating-point type of the distribution parameters.
+ * @tparam S The type of the random number generator state/engine.
+ * @param[in,out] rng A pointer to the random number generator.
+ * @param[in] avg The mean of the distribution.
+ * @param[in] sig The standard deviation of the distribution.
+ * @return A random number from the specified normal distribution.
+ */
 template<class T, class S>
 CUDA_DEVICE typename rnd_return<T>::type
 mqi_normal(S* rng, T avg, T sig) {
     return T();
 }
 
-///< uniform
+/**
+ * @brief Generates a uniformly distributed random number in [0, 1).
+ * @tparam T The floating-point type of the return value.
+ * @tparam S The type of the random number generator state/engine.
+ * @param[in,out] rng A pointer to the random number generator.
+ * @return A random number from the uniform distribution.
+ */
 template<class T, class S>
 CUDA_DEVICE typename rnd_return<T>::type
 mqi_uniform(S* rng) {
     return T();
 }
 
-///< exponetial distribution
+/**
+ * @brief Generates an exponentially distributed random number.
+ * @tparam T The floating-point type of the distribution parameters.
+ * @tparam S The type of the random number generator state/engine.
+ * @param[in,out] rng A pointer to the random number generator.
+ * @param[in] avg The mean of the distribution (lambda = 1/avg).
+ * @param[in] up The upper bound for the generated random number.
+ * @return A random number from the specified exponential distribution.
+ */
 template<class T, class S>
 CUDA_DEVICE typename rnd_return<T>::type
 mqi_exponential(S* rng, T avg, T up) {

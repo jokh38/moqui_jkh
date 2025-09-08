@@ -22,11 +22,15 @@ namespace mqi
 {
 namespace io
 {
-///<  save scorer data to a file in binary format
-///<  scr: scorer pointer
-///<  scale: data will be multiplied by
-///<  dir  : directory path. file name will be dir + scr->name + ".bin"
-///<  reshape: roi is used in scorer, original size will be defined.
+/**
+ * @brief Saves scorer data to binary files.
+ * @tparam R The floating-point type (e.g., float or double).
+ * @param[in] src A pointer to the scorer object.
+ * @param[in] scale A scaling factor to apply to the scorer values.
+ * @param[in] filepath The directory path where the files will be saved.
+ * @param[in] filename The base name for the output files.
+ * @details This function saves the scorer data into three separate binary files: `_key1.raw`, `_key2.raw`, and `_value.raw`. It extracts non-empty key-value pairs from the scorer's hash table.
+ */
 template<typename R>
 void
 save_to_bin(const mqi::scorer<R>* src,
@@ -34,6 +38,16 @@ save_to_bin(const mqi::scorer<R>* src,
             const std::string&    filepath,
             const std::string&    filename);
 
+/**
+ * @brief Saves a raw array to a binary file.
+ * @tparam R The floating-point type (e.g., float or double).
+ * @param[in] src A pointer to the source data array.
+ * @param[in] scale A scaling factor to apply to the data.
+ * @param[in] filepath The directory path for the output file.
+ * @param[in] filename The name of the output file.
+ * @param[in] length The number of elements in the array.
+ * @details The data is scaled and then written to a single `.raw` file.
+ */
 template<typename R>
 void
 save_to_bin(const R*           src,
@@ -42,6 +56,17 @@ save_to_bin(const R*           src,
             const std::string& filename,
             const uint32_t     length);
 
+/**
+ * @brief Saves scorer data to a compressed NumPy `.npz` file in CSR format (spot-major).
+ * @tparam R The floating-point type (e.g., float or double).
+ * @param[in] src A pointer to the scorer object.
+ * @param[in] scale A scaling factor to apply to the scorer values.
+ * @param[in] filepath The directory path for the output file.
+ * @param[in] filename The name of the output file.
+ * @param[in] dim The dimensions of the scoring grid.
+ * @param[in] num_spots The number of spots.
+ * @details The scorer data is saved as a sparse matrix in Compressed Sparse Row (CSR) format, where rows correspond to spots and columns to voxels.
+ */
 template<typename R>
 void
 save_to_npz(const mqi::scorer<R>* src,
@@ -51,6 +76,17 @@ save_to_npz(const mqi::scorer<R>* src,
             mqi::vec3<mqi::ijk_t> dim,
             uint32_t              num_spots);
 
+/**
+ * @brief Saves scorer data to a compressed NumPy `.npz` file in CSR format (voxel-major).
+ * @tparam R The floating-point type (e.g., float or double).
+ * @param[in] src A pointer to the scorer object.
+ * @param[in] scale A scaling factor to apply to the scorer values.
+ * @param[in] filepath The directory path for the output file.
+ * @param[in] filename The name of the output file.
+ * @param[in] dim The dimensions of the scoring grid.
+ * @param[in] num_spots The number of spots.
+ * @details The scorer data is saved as a sparse matrix in Compressed Sparse Row (CSR) format, where rows correspond to voxels and columns to spots. This version uses the ROI mask to determine the matrix size.
+ */
 template<typename R>
 void
 save_to_npz2(const mqi::scorer<R>* src,
@@ -60,6 +96,19 @@ save_to_npz2(const mqi::scorer<R>* src,
              mqi::vec3<mqi::ijk_t> dim,
              uint32_t              num_spots);
 
+/**
+ * @brief Saves scorer data to a compressed NumPy `.npz` file with time scaling and thresholding.
+ * @tparam R The floating-point type (e.g., float or double).
+ * @param[in] src A pointer to the scorer object.
+ * @param[in] scale A scaling factor to apply to the scorer values.
+ * @param[in] filepath The directory path for the output file.
+ * @param[in] filename The name of the output file.
+ * @param[in] dim The dimensions of the scoring grid.
+ * @param[in] num_spots The number of spots.
+ * @param[in] time_scale An array of time scaling factors for each spot.
+ * @param[in] threshold A threshold value to apply to the data.
+ * @details This is an extended version of `save_to_npz` that applies additional processing (time scaling and thresholding) before saving.
+ */
 template<typename R>
 void
 save_to_npz(const mqi::scorer<R>* src,
@@ -71,6 +120,16 @@ save_to_npz(const mqi::scorer<R>* src,
             R*                    time_scale,
             R                     threshold);
 
+/**
+ * @brief Saves key-value pair data to binary files.
+ * @tparam R The floating-point type (e.g., float or double).
+ * @param[in] src A pointer to the array of key_value structs.
+ * @param[in] scale A scaling factor to apply to the values.
+ * @param[in] max_capacity The maximum capacity of the source array.
+ * @param[in] filepath The directory path for the output files.
+ * @param[in] filename The base name for the output files.
+ * @details Similar to the scorer version, this function saves key-value data into three separate binary files: `_key1.raw`, `_key2.raw`, and `_value.raw`.
+ */
 template<typename R>
 void
 save_to_bin(const mqi::key_value* src,
@@ -79,6 +138,17 @@ save_to_bin(const mqi::key_value* src,
             const std::string&    filepath,
             const std::string&    filename);
 
+/**
+ * @brief Saves volumetric data to an MHD/raw file pair.
+ * @tparam R The floating-point type (e.g., float or double).
+ * @param[in] children A pointer to the node structure defining the geometry.
+ * @param[in] src A pointer to the source data array.
+ * @param[in] scale A scaling factor to apply to the data.
+ * @param[in] filepath The directory path for the output files.
+ * @param[in] filename The base name for the output files.
+ * @param[in] length The number of elements in the source array.
+ * @details This function writes a `.mhd` header file and a `.raw` binary data file, a format commonly used in medical imaging (e.g., by ITK).
+ */
 template<typename R>
 void
 save_to_mhd(const mqi::node_t<R>* children,
@@ -88,6 +158,17 @@ save_to_mhd(const mqi::node_t<R>* children,
             const std::string&    filename,
             const uint32_t        length);
 
+/**
+ * @brief Saves volumetric data to a single MHA file.
+ * @tparam R The floating-point type (e.g., float or double).
+ * @param[in] children A pointer to the node structure defining the geometry.
+ * @param[in] src A pointer to the source data array.
+ * @param[in] scale A scaling factor to apply to the data.
+ * @param[in] filepath The directory path for the output file.
+ * @param[in] filename The name of the output file.
+ * @param[in] length The number of elements in the source array.
+ * @details This function writes a single `.mha` file containing both the header and the binary data.
+ */
 template<typename R>
 void
 save_to_mha(const mqi::node_t<R>* children,
