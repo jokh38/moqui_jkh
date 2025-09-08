@@ -5,12 +5,31 @@
 #include <moqui/base/mqi_node.hpp>
 namespace mc
 {
+
+/*!
+ * @brief CUDA kernel to print properties of materials on the GPU.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param m Pointer to the array of materials on the GPU.
+ * @param n_m The number of materials in the array.
+*/
 template<typename R>
 CUDA_GLOBAL void
 print_materials(mqi::material_t<R>* m, uint16_t n_m);
+
+/*!
+ * @brief CUDA device function to print the specifications of a node on the GPU.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param node Pointer to the node on the GPU.
+*/
 template<typename R>
 CUDA_DEVICE void
 print_node_specification_gpu(mqi::node_t<R>* node);
+
+/*!
+ * @brief CUDA kernel to print the specifications of a node and its children.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param node Pointer to the node on the GPU.
+*/
 template<typename R>
 CUDA_GLOBAL void
 print_node_specification(mqi::node_t<R>* node);
@@ -19,7 +38,7 @@ template<typename R>
 CUDA_GLOBAL void
 print_materials(mqi::material_t<R>* m, uint16_t n_m) {
     for (uint16_t i = 0; i < n_m; ++i) {
-        printf("%d: %f IeV, %f g/cm^3\n", i, m[i].Iev, m[i].rho_mass);
+        printf("%d: %f Iev, %f g/cm^3\n", i, m[i].Iev, m[i].rho_mass);
     }
 }
 
@@ -146,6 +165,11 @@ print_node_specification(mqi::node_t<R>* node) {
 }
 
 #if defined(__CUDACC__)
+/*!
+ * @brief CUDA kernel to print density values from a __half array on the GPU.
+ * @param g_density Pointer to the density array on the GPU.
+ * @param size_ The number of elements in the array.
+*/
 CUDA_GLOBAL
 void
 print_density(__half* g_density, uint32_t size_) {
@@ -154,6 +178,11 @@ print_density(__half* g_density, uint32_t size_) {
     }
 }
 
+/*!
+ * @brief CUDA kernel to print density values from a float array on the GPU.
+ * @param g_density Pointer to the density array on the GPU.
+ * @param size_ The number of elements in the array.
+*/
 CUDA_GLOBAL
 void
 print_density(float* g_density, uint32_t size_) {

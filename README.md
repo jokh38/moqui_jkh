@@ -26,7 +26,7 @@ This project provides the low-level components for building complex simulations,
 
 -   **C++ Compiler**: A compiler that supports C++11 or later (e.g., GCC, Clang, MSVC).
 -   **CMake**: Version 3.10 or later. You can download it from the [official CMake website](https://cmake.org/download/).
--   **NVIDIA CUDA Toolkit**: (Optional) Version 10.0 or later is required for GPU acceleration. You can download it from the [NVIDIA Developer website](https://developer.nvidia.com/cuda-toolkit).
+-   **NVIDIA CUDA Toolkit**: (Optional) Version 11.7 is recommended for GPU acceleration, as it is the version specified in the `CMakeLists.txt` file. You can download it from the [NVIDIA Developer website](https://developer.nvidia.com/cuda-toolkit).
 -   **GDCM (Grassroots DICOM)**: A library for DICOM file handling. You can install it using a package manager.
     -   On Debian/Ubuntu: `sudo apt-get install libgdcm-tools`
     -   On macOS (using Homebrew): `brew install gdcm`
@@ -54,12 +54,13 @@ This project provides the low-level components for building complex simulations,
     ```bash
     cmake -DMOQUI_WITH_CUDA=ON ..
     ```
+    **Note:** The current `CMakeLists.txt` file is configured to use CUDA 11.7. If you have a different version, you may need to update the paths in the `CMakeLists.txt` file.
 
 4.  **Build the project:**
     ```bash
     make
     ```
-    After a successful build, the executables can be found in the `build/bin` directory.
+    After a successful build, the executable `tps_env` can be found in the `build/` directory.
 
 ## Usage
 
@@ -118,12 +119,12 @@ int main(int argc, char* argv[]) {
 
 ### Command-Line Interface
 
-The project includes several command-line tools for running simulations and tests. After building, these tools can be found in the `build/bin` directory.
+The project includes a command-line tool for running simulations. After building, the `tps_env` executable can be found in the `build/` directory.
 
-A typical simulation is run using an input file that specifies the parameters for the simulation. For example:
+A typical simulation is run using an input file that specifies the parameters for the simulation. If no input file is provided, it will look for `moqui_tps.in` in the current directory.
 
 ```bash
-./build/bin/executable_name -i /path/to/your/input.txt
+./build/tps_env /path/to/your/input.txt
 ```
 
 An example `input.txt` file might look like this:
@@ -177,9 +178,9 @@ Once installed, run the following command from the root of the repository:
 doxygen Doxyfile
 ```
 
-This will generate an HTML documentation in the `docs/html` directory. Open `docs/html/index.html` in your browser to view the documentation.
+This will generate HTML documentation in the `docs/html` directory. Open `docs/html/index.html` in your browser to view the documentation.
 
-The `code_structure.md` file provides a high-level overview of the repository's structure, and `progress.md` tracks the documentation status of the files. The `todolist.txt` file outlines the remaining documentation work.
+The documentation is actively being updated. The `code_structure.md` file provides a high-level overview of the repository's structure, and `progress.md` tracks the documentation status of the files. The `todolist.txt` file outlines the remaining documentation work.
 
 ## Testing
 

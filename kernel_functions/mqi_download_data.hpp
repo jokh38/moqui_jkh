@@ -11,9 +11,25 @@ namespace mc
 {
 
 #if defined(__CUDACC__)
+/*!
+ * @brief CUDA kernel to download scorer data from GPU to a specified host memory location.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param g_node_mother Pointer to the parent node on the GPU.
+ * @param g_node_id The ID of the child node whose scorer is being downloaded.
+ * @param scorer_id The ID of the scorer to download.
+ * @param deposit Pointer to the host memory where the scorer data will be copied.
+*/
 template<typename R>
 CUDA_GLOBAL void
 download_scorers(mqi::node_t<R>* g_node_mother, uint16_t g_node_id, uint16_t scorer_id, R* deposit);
+
+/*!
+ * @brief Downloads node data, including scorers, from the GPU to the CPU.
+ * @details This function recursively traverses the node hierarchy, copying scorer data from the GPU to the corresponding CPU-side node objects. It is intended to be called after a simulation on the GPU has completed to retrieve the results. This function handles both standard scoring and variance scoring.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param c_node Pointer to the current node on the CPU (host).
+ * @param g_node Pointer to the corresponding node on the GPU (device).
+*/
 template<typename R>
 void
 download_node(mqi::node_t<R>* c_node, mqi::node_t<R>*& g_node);

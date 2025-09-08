@@ -15,6 +15,13 @@
 namespace mc
 {
 
+/*!
+ * @brief A hash function to map two keys to a slot in a hash table.
+ * @param k1 The first key.
+ * @param k2 The second key.
+ * @param max_capacity The maximum capacity of the hash table.
+ * @return The calculated hash value (slot).
+*/
 CUDA_DEVICE
 uint32_t
 hash_fun(uint32_t k1, uint32_t k2, uint64_t max_capacity) {
@@ -34,6 +41,13 @@ hash_fun(uint32_t k1, uint32_t k2, uint64_t max_capacity) {
     return k2 % (max_capacity);
 }
 
+/*!
+ * @brief A simple Compare-And-Swap (CAS) operation for host-side execution.
+ * @param address Pointer to the memory location.
+ * @param compare The value to compare with.
+ * @param val The value to set if the comparison is successful.
+ * @return The original value at the memory location.
+*/
 CUDA_HOST_DEVICE
 uint32_t
 CAS(uint32_t* address, uint32_t compare, uint32_t val) {
@@ -45,6 +59,17 @@ CAS(uint32_t* address, uint32_t compare, uint32_t val) {
     return old;
 }
 
+/*!
+ * @brief Inserts a key-value pair into a hash table using atomic operations.
+ * @details This function is designed for concurrent insertion into a shared hash table on the GPU. It uses linear probing to resolve hash collisions.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param hashtable Pointer to the hash table.
+ * @param key1 The first key.
+ * @param key2 The second key (can be mqi::empty_pair if not used).
+ * @param value The value to add to the slot.
+ * @param scorer_offset An offset used in some scoring scenarios (not currently used in this function).
+ * @param max_capacity The maximum capacity of the hash table.
+*/
 template<typename R>
 CUDA_DEVICE void
 insert_hashtable(mqi::key_value*        hashtable,
@@ -84,6 +109,20 @@ insert_hashtable(mqi::key_value*        hashtable,
     }
 }
 
+/*!
+ * @brief CUDA kernel for transporting particles through a patient geometry.
+ * @details This is the main particle transport loop. It processes a batch of particles (vertices), simulates their interaction with the patient geometry, and scores quantities like dose.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param threads Pointer to the thread-local data, including RNG states.
+ * @param world Pointer to the top-level node of the simulation world.
+ * @param vertices Pointer to the initial particle states (vertices).
+ * @param n_vtx The total number of vertices to process.
+ * @param tracked_particles A counter for the number of successfully tracked particles.
+ * @param scorer_offset_vector An optional vector for spot-based scoring.
+ * @param score_local_deposit A flag to enable/disable local energy deposition scoring.
+ * @param total_threads The total number of threads in the grid.
+ * @param thread_id The unique ID of the current thread.
+*/
 template<typename R>
 CUDA_GLOBAL void
 transport_particles_patient(mqi::thrd_t*      threads,
@@ -232,6 +271,21 @@ transport_particles_patient(mqi::thrd_t*      threads,
     }   //for
 }   //transport_particles_table
 
+/*!
+ * @brief CUDA kernel for transporting particles with per-particle seeding.
+ * @details This version of the transport kernel is similar to `transport_particles_patient` but initializes the random number generator for each particle using a provided seed. This is useful for reproducibility and debugging.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param threads Pointer to the thread-local data.
+ * @param world Pointer to the top-level node of the simulation world.
+ * @param vertices Pointer to the initial particle states (vertices).
+ * @param n_vtx The total number of vertices to process.
+ * @param tracked_particles A counter for the number of successfully tracked particles.
+ * @param transport_seed Pointer to an array of seeds, one for each particle.
+ * @param scorer_offset_vector An optional vector for spot-based scoring.
+ * @param score_local_deposit A flag to enable/disable local energy deposition scoring.
+ * @param total_threads The total number of threads in the grid.
+ * @param thread_id The unique ID of the current thread.
+*/
 template<typename R>
 CUDA_GLOBAL void
 transport_particles_patient_seed(mqi::thrd_t*      threads,
