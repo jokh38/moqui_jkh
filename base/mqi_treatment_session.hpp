@@ -22,40 +22,49 @@
 namespace mqi
 {
 
-/// \class treatment_session
-/// \tparam T type of phase-space variables
-/// Reads RT-Ion file, creates treatment_machine,
-/// and returns machine objects, geometry, source, and coordinate system.
-/// treatment_session is an entry point to RT-Ion interface to a MC engine.
-/// \note we are considering to include patient, and dosegrid here.
+/// @class treatment_session
+/// @brief Manages a radiotherapy treatment session, acting as the primary interface to the Monte Carlo engine.
+///
+/// This class is the main entry point for a simulation. It reads and parses RT-ION DICOM files
+/// (Plan or Treatment Record), determines the modality, and instantiates the appropriate
+/// treatment machine model. It provides methods to access various components of the
+/// treatment plan, such as the beamline, beam source, and coordinate systems for each beam.
+///
+/// @tparam T The floating-point type for phase-space variables (e.g., `float` or `double`).
+/// @note Future development may include patient and dose grid management within this class.
 template<typename T>
 class treatment_session
 {
 protected:
-    ///< Sequence tag dictionary for modality specific
+    ///< Sequence tag dictionary for modality-specific DICOM tags.
     const std::map<const std::string, const gdcm::Tag>* seq_tags_;
 
-    ///< RT Modality type, e.g., RTPLAN, RTRECORD, IONPLAN, IONRECORD
+    ///< RT Modality type (e.g., RTPLAN, RTRECORD, IONPLAN, IONRECORD).
     mqi::modality_type mtype_;
 
-    ///< machine name, e.g., institution_name:machine_name
+    ///< Machine name, typically in "institution:name" format.
     std::string machine_name_;
 
+    ///< Pointer to the instantiated treatment machine object.
     mqi::treatment_machine<T>* tx_machine_ = nullptr;
 
-    ///< top level DICOM dataset, either RTIP or RTIBTR
+    ///< Pointer to the top-level DICOM dataset (RTIP or RTIBTR).
     mqi::dataset* mqi_ds_ = nullptr;
 
 public:
+    ///< Patient material properties.
     mqi::patient_material_t<T> material_;
 
-    /// Constructs treatment machine based on DICOM or specific file name.
-    /// It reads in RT file recursively and construct a dataset tree
-    /// Depending on RTIP or RTIBTR, it copies a propriate DICOM tag dictionaries
-    /// (seqtags_per_modality).
+    /// @brief Constructs a treatment session from a DICOM file.
     ///
-    /// \param file_for_tx_machine : RTPLAN, IONPLAN, RTRECORD, IONRECORD - file name
-    /// Currently IONPLAN and IONRECORD are supported only.
+    /// This constructor reads the specified DICOM file, determines the modality (e.g., IONPLAN, IONRECORD),
+    /// parses the dataset, and creates the corresponding treatment machine model.
+    ///
+    /// @param file_for_tx_machine Path to the DICOM file (RTPLAN, IONPLAN, RTRECORD, IONRECORD).
+    /// @param m_name Optional machine name. If empty, it's read from the DICOM file.
+    /// @param mc_code The name and version of the Monte Carlo code being used (e.g., "TOPAS 3.5").
+    /// @param gantryNum The gantry number, used to select the specific nozzle/machine model.
+    /// @note Currently, only IONPLAN and IONRECORD modalities are fully supported.
     treatment_session(std::string file_for_tx_machine,   //for beamline and source,
                       std::string m_name  = "",
                       std::string mc_code = "TOPAS 3.5",
@@ -125,13 +134,14 @@ public:
         }
     }
 
-    /// Creates mqi::machine and return true for successful creation or false.
-    /// \param machine_name for machine name
-    /// \param mc_code for mc engine, e.g., code:version
-    /// \note it takes itype_ member variables. caution, itype_ shouldn't be changed after creation.
-    /// \note we have a branch for machines based on "string" comparison.
-    ///  Looking for better way to determine during 'ideally' pre-processing.
-    /// type_traits allows to branch the logic flow based on the type of variables.
+    /// @brief Creates and configures the treatment machine model.
+    ///
+    /// This method instantiates the correct machine model (e.g., `mqi::gtr1`, `mqi::gtr2`)
+    /// based on the provided machine name and gantry number.
+    /// @param machine_name The name of the machine (e.g., "SMC:GTR1").
+    /// @param mc_code The MC engine being used.
+    /// @param gantryNum The gantry number (1 or 2) to select the specific model.
+    /// @return `true` if the machine was created successfully, `false` otherwise.
     bool
     create_machine(std::string machine_name, std::string mc_code, int gantryNum) {
         if (tx_machine_) throw std::runtime_error("Preexisting machine.");
@@ -177,13 +187,14 @@ public:
         return true;
     }
 
-    /// Default destructor
+    /// @brief Destructor. Cleans up the treatment machine and dataset objects.
     ~treatment_session() {
         delete tx_machine_;
         delete mqi_ds_;
     }
 
-    /// Returns a list of beam names present in the plan file.
+    /// @brief Retrieves a list of all beam names from the treatment plan.
+    /// @return A `std::vector<std::string>` containing the names of all beams.
     std::vector<std::string>
     get_beam_names() {
         auto                     beam_sequence = (*mqi_ds_)(seq_tags_->at("beam"));
@@ -196,7 +207,9 @@ public:
         return beam_names;
     }
 
-    /// Returns the number of beams present in the plan file.
+    /// @brief Gets the total number of beams in the treatment plan.
+    /// @return The number of beams.
+    /// @note This currently counts all beams, including setup beams.
     int
     get_num_beams() {
         auto beam_sequence = (*mqi_ds_)(seq_tags_->at("beam"));
@@ -208,6 +221,8 @@ public:
         return count;
     }
 
+    /// @brief Gets the number of fractions planned.
+    /// @return The total number of fractions.
     int
     get_fractions() {
         auto             fraction_sequence = (*mqi_ds_)(gdcm::Tag(0x300a, 0x0070));
@@ -217,6 +232,10 @@ public:
         }
         return n_fractions[0];
     }
+
+    /// @brief Retrieves the name of a beam given its number.
+    /// @param bnb The beam number.
+    /// @return The name of the corresponding beam.
     std::string
     get_beam_name(int bnb) {
         std::string beam_name;
@@ -236,9 +255,10 @@ public:
         }
         throw std::runtime_error("Invalid beam number.");
     }
-    /// Search and return a beam (DICOM dataset) in BeamSequence for given beam name
-    /// \param bnm for beam name
-    /// \return mqi::dataset* constant pointer.
+
+    /// @brief Retrieves the DICOM dataset for a beam given its name.
+    /// @param bnm The name of the beam.
+    /// @return A constant pointer to the `mqi::dataset` for the specified beam.
     const mqi::dataset*
     get_beam_dataset(std::string bnm) {
         auto bseq = (*mqi_ds_)(seq_tags_->at("beam"));
@@ -251,9 +271,9 @@ public:
         throw std::runtime_error("Invalid beam name.");
     }
 
-    /// Search and return a beam (DICOM dataset) in BeamSequence for given beam number
-    /// \param bnm for beam number
-    /// \return mqi::dataset* constant pointer.
+    /// @brief Retrieves the DICOM dataset for a beam given its number.
+    /// @param bnb The number of the beam.
+    /// @return A constant pointer to the `mqi::dataset` for the specified beam.
     const mqi::dataset*
     get_beam_dataset(int bnb) {
         auto bseq = (*mqi_ds_)(seq_tags_->at("beam"));
@@ -267,9 +287,10 @@ public:
         throw std::runtime_error("Invalid beam number.");
     }
 
-    /// Get beamline object for given beam id, e.g, beam name or beam number
-    /// \param beam_id for beam number or beam name
-    /// \return beamline object.
+    /// @brief Gets the beamline object for a specific beam.
+    /// @tparam S The type of the beam identifier (e.g., `std::string` for name, `int` for number).
+    /// @param beam_id The identifier of the beam.
+    /// @return The `mqi::beamline<T>` object for the specified beam.
     template<typename S>
     mqi::beamline<T>
     get_beamline(S beam_id) {
@@ -278,12 +299,13 @@ public:
         return tx_machine_->create_beamline(this->get_beam_dataset(beam_id), mtype_);
     }
 
-    /// Gets beam source object for given beam id, e.g, beam name or beam number
-    /// \param beam_id for beam number or beam name
-    /// \param coord   for coordinate transformation
-    /// \param sid     for source to isocenter distance in mm
-    /// \param scale   for calculating number of histories to be simulated from beamlet weight
-    /// \return beamsource object.
+    /// @brief Gets the beam source object for a specific beam.
+    /// @tparam S The type of the beam identifier (e.g., `std::string` for name, `int` for number).
+    /// @param beam_id The identifier of the beam.
+    /// @param coord The coordinate transformation to apply.
+    /// @param scale The scaling factor for calculating the number of histories.
+    /// @param sid The source-to-isocenter distance in mm.
+    /// @return The `mqi::beamsource<T>` object for the specified beam.
     template<typename S>
     mqi::beamsource<T>
     get_beamsource(S beam_id, const mqi::coordinate_transform<T> coord, float scale, T sid) {
@@ -291,12 +313,12 @@ public:
           this->get_beam_dataset(beam_id), mtype_, coord, scale, sid);
     }
 
-    /// Gets beam source object for given beam id, e.g, beam name or beam number
-    /// \param beam_id for beam number or beam name
-    /// \param coord   for coordinate transformation
-    /// \param sid     for source to isocenter distance in mm
-    /// \param scale   for calculating number of histories to be simulated from beamlet weight
-    /// \return beamsource object.
+    /// @brief Gets the beam source object for a given beam dataset.
+    /// @param beam A pointer to the beam's `mqi::dataset`.
+    /// @param coord The coordinate transformation to apply.
+    /// @param scale The scaling factor for calculating the number of histories.
+    /// @param sid The source-to-isocenter distance in mm.
+    /// @return The `mqi::beamsource<T>` object for the specified beam.
     mqi::beamsource<T>
     get_beamsource(mqi::dataset*                      beam,
                    const mqi::coordinate_transform<T> coord,
@@ -305,10 +327,13 @@ public:
         return tx_machine_->create_beamsource(beam, mtype_, coord, scale, sid);
     }
 
-    // *************************************************************************
-    // Get beamsource function for log file
-    // Delete scale and modality information because it is not necessary
-    // Added in 2023 by Chanil Jeon
+    /// @brief Gets the beam source object from log file data.
+    /// @param logfileData A struct containing data parsed from log files.
+    /// @param coord The coordinate transformation to apply.
+    /// @param sid The source-to-isocenter distance in mm.
+    /// @param rsuse A boolean indicating whether a range shifter is used.
+    /// @return The `mqi::beamsource<T>` object.
+    /// @note Added by Chanil Jeon in 2023.
     mqi::beamsource<T>
     get_beamsource(mqi::logfiles_t&                   logfileData,
                    const mqi::coordinate_transform<T> coord,
@@ -316,40 +341,44 @@ public:
                    const bool rsuse) {
         return tx_machine_->create_beamsource(logfileData, coord, sid, rsuse);
     }
-    // *************************************************************************
 
-    /// Gets time line object for given beam id, e.g., beam name or number
-    /// \param beam_id
+    /// @brief Gets the timeline object for a specific beam.
+    /// @tparam S The type of the beam identifier.
+    /// @param beam_id The identifier of the beam.
+    /// @return A map representing the beam's timeline.
     template<typename S>
     std::map<T, int32_t>
     get_timeline(S beam_id) {
         return tx_machine_->create_timeline(this->get_beam_dataset(beam_id), mtype_);
     }
 
-    /// Gets beam coordinate object for given beam id, e.g, beam name or beam number
-    /// \param beam_id for beam number or beam name
-    /// \return beam coordinate
+    /// @brief Gets the coordinate transformation object for a specific beam.
+    /// @tparam S The type of the beam identifier.
+    /// @param beam_id The identifier of the beam.
+    /// @return The `mqi::coordinate_transform<T>` object for the specified beam.
     template<typename S>
     mqi::coordinate_transform<T>
     get_coordinate(S beam_id) {
         return tx_machine_->create_coordinate_transform(this->get_beam_dataset(beam_id), mtype_);
     }
 
-    /// Summarize plan
-    /// \param bnb for beam number
+    /// @brief Dumps a summary of the plan to the console.
     void
     summary(void) {
         //plan_ds
         mqi_ds_->dump();
     }
 
-    /// Return ion type
-    /// \return mqi::m_type_
+    /// @brief Returns the modality type of the current session.
+    /// @return The `mqi::modality_type` enum value.
     mqi::modality_type
     get_modality_type(void) {
         return mtype_;
     }
 
+    /// @brief Retrieves a specific data element from the top-level dataset.
+    /// @param tag The `gdcm::Tag` of the data element to retrieve.
+    /// @return A constant reference to the `gdcm::DataElement`.
     const gdcm::DataElement&
     get_dataelement(gdcm::Tag tag) {
         return mqi_ds_[0][tag];

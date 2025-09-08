@@ -17,27 +17,46 @@
 
 namespace mqi
 {
+
+/// @class pbs_material_t
+/// @brief A material definition class for Pencil Beam Scanning (PBS) simulations.
+///
+/// This class extends `patient_material_t` and can be used to define materials
+/// based on Hounsfield Units (HU).
+///
+/// @tparam R The floating-point type for material properties (e.g., `float` or `double`).
 template<typename R>
 class pbs_material_t : public patient_material_t<R>
 {
 public:
+    /// @brief Default constructor.
     CUDA_HOST_DEVICE
     pbs_material_t() : patient_material_t<R>() {
         ;
     }
 
+    /// @brief Constructor initializing the material from a Hounsfield Unit value.
+    /// @param hu The Hounsfield Unit (HU) value.
     CUDA_HOST_DEVICE
     pbs_material_t(int16_t hu) : patient_material_t<R>(hu) {
         ;
     }
 
+    /// @brief Default destructor.
     CUDA_HOST_DEVICE
     ~pbs_material_t() {
         ;
     }
 };
-/// \class A generic PBS system
-/// This class reads in the beam model specification from a file
+
+/// @class pbs
+/// @brief A generic Pencil Beam Scanning (PBS) treatment machine model.
+///
+/// This class implements the `treatment_machine_ion` interface for a PBS system.
+/// It reads beam model specifications, geometry, and timing information from a configuration file.
+/// It is responsible for characterizing beamlets, apertures, and range shifters based on this data.
+///
+/// @tparam T The floating-point type for phase-space variables (e.g., `float` or `double`).
 template<typename T>
 class pbs : public treatment_machine_ion<T>
 {
@@ -54,54 +73,60 @@ protected:
     const T m       = 1000.0 * mm;
     const T const_e = 1.6021766208e-19;
 
-    //Spot specification
+    /// @struct spot_specification
+    /// @brief Holds the parameters defining a single spot in the beam model.
     struct spot_specification {
-        T E;
-        T dE;
-        T x;
-        T y;
-        T xp;
-        T yp;
-        T ratio;
+        T E;     ///< Nominal energy.
+        T dE;    ///< Energy spread.
+        T x;     ///< Spot size in x-direction.
+        T y;     ///< Spot size in y-direction.
+        T xp;    ///< Divergence in x-direction.
+        T yp;    ///< Divergence in y-direction.
+        T ratio; ///< Conversion ratio (e.g., meterset to particles).
     };
+    ///< Map of beam data, keyed by energy.
     std::map<T, spot_specification> beamdata_;
 
-    //Rangeshifter specification
+    /// @struct geometry_specification
+    /// @brief Holds the geometric parameters of the treatment machine.
     std::map<std::string, T> rangeshifter_;
 
-    //Geometry specification
-    //two values
+    /// @struct geometry_specification
+    /// @brief Holds the geometric parameters of the treatment machine.
     struct geometry_specification {
-        std::array<T, 2> SAD;
-        std::array<T, 2> rangeshifter;
-        T                rangeshifter_snout_gap;
-        std::array<T, 2> aperture;
+        std::array<T, 2> SAD;                  ///< Source-to-Axis Distance in x and y.
+        std::array<T, 2> rangeshifter;         ///< Dimensions of the range shifter.
+        T                rangeshifter_snout_gap; ///< Gap between range shifter and snout.
+        std::array<T, 2> aperture;             ///< Dimensions of the aperture.
     } geometry_spec_;
 
-    //Delivery time specifiation
+    /// @struct time_specification
+    /// @brief Holds the parameters related to beam delivery timing.
     struct time_specification {
-        T i;         //I(nA)
-        T e;         //E(sec): layer switching
-        T dt_down;   //dT(ms)_down   : latency down
-        T dt_up;     //dT(ms)_up     : latency up
-        T set_x;     //set_x(ms)     : settling time for x
-        T set_y;     //set_y(ms)     : settling time for y
-        T vx;        //scan_x : scan speed X
-        T vy;        //scan_y : scan  speed y
+        T i;       ///< Beam current (nA).
+        T e;       ///< Layer switching time (sec).
+        T dt_down; ///< Latency down (ms).
+        T dt_up;   ///< Latency up (ms).
+        T set_x;   ///< Settling time for x-scanning (ms).
+        T set_y;   ///< Settling time for y-scanning (ms).
+        T vx;      ///< Scanning speed in x (m/sec).
+        T vy;      ///< Scanning speed in y (m/sec).
     } time_spec_;
 
-    //
+    ///< Linear interpolation function.
     std::function<T(T, T, T, T, T)> intpl = [](T x, T x0, T x1, T y0, T y1) {
         return (x1 == x0) ? y0 : y0 + (x - x0) * (y1 - y0) / (x1 - x0);
     };
 
 public:
-    /// Default constructor
+    /// @brief Default constructor. Initializes SAD to infinity.
     pbs() : cm2mm(10.0), mm2cm(0.1) {
         treatment_machine_ion<T>::SAD_[0] = std::numeric_limits<T>::infinity();
         treatment_machine_ion<T>::SAD_[1] = std::numeric_limits<T>::infinity();
     }
 
+    /// @brief Constructor that loads beam data from a file.
+    /// @param filename The path to the beam model configuration file.
     pbs(const std::string filename) : cm2mm(10.0), mm2cm(0.0) {
         this->load_beamdata(filename);
         if (geometry_spec_.SAD[0] == 0)
@@ -110,12 +135,17 @@ public:
             treatment_machine_ion<T>::SAD_[1] = std::numeric_limits<T>::infinity();
     }
 
+    /// @brief Default destructor.
     ~pbs() {
         ;
     }
 
-    /// Characterize MODULATED_SPEC/UNIFORM
-    /// \note not yet implemented cause we treat patients with spot-scanning only
+    /// @brief Calculates the number of histories for a uniform or modulated-spec beamlet.
+    /// @param s0 The starting spot.
+    /// @param s1 The ending spot.
+    /// @param scale The scaling factor (particles per history).
+    /// @return The number of histories to simulate.
+    /// @note Not yet implemented as the focus is on spot-scanning. Returns 0.
     virtual size_t
     characterize_history(const mqi::beam_module_ion::spot& s0,
                          const mqi::beam_module_ion::spot& s1,
@@ -123,8 +153,12 @@ public:
         return 0;
     }
 
-    /// Characterize MODULATED_SPEC/UNIFORM
-    /// \note not yet implemented cause we treat patients with spot-scanning only
+    /// @brief Calculates the number of histories for a modulated beamlet.
+    ///
+    /// This method interpolates the beam data to find the meterset-to-particle ratio for the given energy.
+    /// @param s The spot information.
+    /// @param scale The scaling factor (particles per history).
+    /// @return The number of histories to simulate.
     virtual size_t
     characterize_history(const mqi::beam_module_ion::spot& s, float scale) {
         auto beam_up = beamdata_.lower_bound(s.e);
@@ -136,13 +170,13 @@ public:
         return s.meterset * mid_ratio / scale;
     }
 
-    //virtual
-    //characterize_time(const mqi::beam_modle_ion::spot& s,
-    //return dT for spot s
-
-    /// Characterize UNIFORM beam delivery continous scan
-    /// define a continuous position distribution in mqi_distributions
-    /// this uses "phsp6d_fanbeam" distribution to sample position between x0 to x1.
+    /// @brief Characterizes a beamlet for continuous-scan uniform beam delivery.
+    ///
+    /// This method creates a `phsp_6d_fanbeam` distribution to sample particle positions and directions
+    /// between two given spots.
+    /// @param s0 The starting spot.
+    /// @param s1 The ending spot.
+    /// @return A `mqi::beamlet<T>` object representing the continuous scan segment.
     virtual mqi::beamlet<T>
     characterize_beamlet(const mqi::beam_module_ion::spot& s0,
                          const mqi::beam_module_ion::spot& s1) {
@@ -188,7 +222,12 @@ public:
         return mqi::beamlet<T>(energy, spot_);
     }
 
-    /// Characterize beamlet for MODULATED beam
+    /// @brief Characterizes a beamlet for a modulated (spot-scanning) beam.
+    ///
+    /// This method interpolates the machine's beam data to define the properties of a single spot beamlet,
+    /// including energy, position, and divergence.
+    /// @param s The spot information from the treatment plan.
+    /// @return A `mqi::beamlet<T>` object for the spot.
     virtual mqi::beamlet<T>
     characterize_beamlet(const mqi::beam_module_ion::spot& s) {
 
@@ -228,7 +267,10 @@ public:
         return mqi::beamlet<T>(energy, beamlet);
     }
 
-    /// Characterize beamlet for MODULATED beam
+    /// @brief Characterizes a beamlet for a modulated beam with a specified source-to-isocenter distance.
+    /// @param s The spot information from the treatment plan.
+    /// @param source_to_isocenter_mm The distance from the source to the isocenter in mm.
+    /// @return A `mqi::beamlet<T>` object for the spot.
     mqi::beamlet<T>
     characterize_beamlet(const mqi::beam_module_ion::spot& s,
                          const float                       source_to_isocenter_mm = 390.0) {
@@ -269,7 +311,10 @@ public:
         return mqi::beamlet<T>(energy, beamlet);
     }
 
-    /// Characterize Rangeshifter
+    /// @brief Characterizes a range shifter based on DICOM data and machine geometry.
+    /// @param ds Pointer to the dataset for one item of an `IonBeamSequence`.
+    /// @param m The modality type.
+    /// @return A pointer to a `mqi::rangeshifter` object.
     mqi::rangeshifter*
     characterize_rangeshifter(const mqi::dataset* ds, mqi::modality_type m) {
         auto seq_tags = &mqi::seqtags_per_modality.at(m);
@@ -327,9 +372,13 @@ public:
         return new mqi::rangeshifter(lxyz, pxyz, rxyz);
     }
 
-    /// Characterize beam delievery time
-    /// \param s_curr current spot to be delivered. The irradiation time depends on meterset of this spot
-    /// \param s_next next spot to be delivered. To calculate time to move from this to next spot. dT_move
+    /// @brief Characterizes the beam delivery time for a spot.
+    ///
+    /// This method calculates the beam-on time based on the spot's meterset and the beam current,
+    /// and the beam-off time based on scanning speeds, settling times, and layer switching times.
+    /// @param s_curr The current spot to be delivered.
+    /// @param s_next The next spot in the sequence.
+    /// @return An array containing the on-time and off-time in seconds.
     virtual std::array<T, 2>
     characterize_beamlet_time(const mqi::beam_module_ion::spot& s_curr,
                               const mqi::beam_module_ion::spot& s_next) {
@@ -365,7 +414,10 @@ public:
         return { dT_on, dT_off };
     }
 
-    /// Characterize aperture
+    /// @brief Characterizes an aperture based on DICOM data and machine geometry.
+    /// @param ds Pointer to the dataset for one item of an `IonBeamSequence`.
+    /// @param m The modality type.
+    /// @return A pointer to a `mqi::aperture` object.
     mqi::aperture*
     characterize_aperture(const mqi::dataset* ds, mqi::modality_type m) {
         auto seq_tags = &mqi::seqtags_per_modality.at(m);
@@ -390,7 +442,11 @@ public:
         return new mqi::aperture(xypts, lxyz, pxyz, rxyz, false);
     }
 
-    /// Set machine parameters from file
+    /// @brief Loads machine parameters from a configuration file.
+    ///
+    /// This method parses a text file containing sections for geometry, range shifter thickness,
+    /// spot characteristics, and timing parameters.
+    /// @param f The path to the configuration file.
     void
     load_beamdata(const std::string f) {
         const std::regex section_header("(.*)\\[(.*)\\](.*)");

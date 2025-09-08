@@ -63,3 +63,13 @@ The following files have been fully documented with Doxygen-style docstrings:
 55. `base/mqi_threads.hpp`
 56. `base/mqi_track.hpp`
 57. `base/mqi_track_stack.hpp`
+58. `base/mqi_treatment_machine.hpp`
+59. `base/mqi_treatment_machine_ion.hpp`
+60. `base/mqi_treatment_machine_pbs.hpp`
+61. `base/mqi_treatment_session.hpp`
+62. `base/mqi_utils.hpp`
+63. `base/mqi_vec.hpp`
+64. `base/mqi_vertex.hpp`
+65. `treatment_machines/mqi_treatment_machine_smc_gtr1.hpp`
+66. `treatment_machines/mqi_treatment_machine_smc_gtr2.hpp`
+67. `treatment_machines/spline_interp.hpp`

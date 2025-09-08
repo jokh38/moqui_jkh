@@ -15,29 +15,39 @@
 namespace mqi
 {
 
-/// \class treatment_machine_ion
+/// @class treatment_machine_ion
+/// @brief A class representing a particle therapy system, inheriting from `treatment_machine`.
 ///
-/// Describes an particle therapy system
-/// \tparam T type of phase-space variables, e.g., float or double
+/// This class provides a concrete implementation for ion therapy machines, handling the creation
+/// of beam sources, beamlines, and coordinate transformations based on DICOM data or other inputs.
+/// It includes methods for characterizing beamlets, apertures, and range shifters.
+///
+/// @tparam T The floating-point type for phase-space variables (e.g., `float` or `double`).
 template<typename T>
 class treatment_machine_ion : public treatment_machine<T>
 {
 
 protected:
 public:
-    /// Default constructor
+    /// @brief Default constructor.
     treatment_machine_ion() {
         ;
     }
 
-    /// Default Destructors
+    /// @brief Default destructor.
     ~treatment_machine_ion() {
         ;
     }
 
-    /// Returns angles of Collimator, Gantry, and Couch and iso-center position
-    /// \note rotation angle directio is assumed CCW
-    /// As RTIBTR doesn't have iso-center position, (0,0,0) is returned for RTIBTR
+    /// @brief Creates a coordinate transformation from a dataset.
+    ///
+    /// This method extracts gantry, collimator, and couch angles, as well as the isocenter position,
+    /// from the provided dataset to define the beam's coordinate system.
+    /// @param ds Pointer to the dataset containing treatment plan information.
+    /// @param m The modality type (e.g., `RTPLAN`, `IONPLAN`).
+    /// @return A `mqi::coordinate_transform<T>` object.
+    /// @note Rotation angle direction is assumed to be counter-clockwise (CCW).
+    /// @note For RTIBTR, which lacks isocenter data, a position of (0,0,0) is returned.
     virtual mqi::coordinate_transform<T>
     create_coordinate_transform(const mqi::dataset* ds, const mqi::modality_type m) {
         auto                     seq_tags = &mqi::seqtags_per_modality.at(m);
@@ -67,17 +77,17 @@ public:
         return mqi::coordinate_transform<T>(angles, pos);
     }
 
-    /// Returns beamsource object
-    /// \param ds one-item of IonBeamSequence
-    /// \param m  modality type, e.g., RTIP or RTIBTR
-    /// \param pcoord  coordinate transform to map global coordinate system
-    /// \param scalefactor a downscale factor, i.e., particles per history.
-    ///        -1 means any of beamlet generates one history (usefule for debugging).
-    /// \param source_to_isocenter_mm distance the histories are generated.
-    /// \note user don't have to touch this part typically.
-    /// \note currently we support only MODULATED beam
-    /// \note maybe return const mqi::beamsource<T>& ?
+    /// @brief Creates a beam source from a dataset.
     ///
+    /// This method constructs a beam source by parsing an `IonBeamSequence` from the dataset.
+    /// It characterizes each spot to create beamlets and determines the number of histories to simulate.
+    /// @param ds Pointer to the dataset for one item of an `IonBeamSequence`.
+    /// @param m The modality type (e.g., `RTIP` or `RTIBTR`).
+    /// @param pcoord The coordinate transform to map to the global coordinate system.
+    /// @param particles_per_history A scaling factor for the number of particles per history. If -1, each beamlet generates one history.
+    /// @param source_to_isocenter_mm The distance from the source to the isocenter in mm.
+    /// @return A `mqi::beamsource<T>` object.
+    /// @note Currently, only `MODULATED` scan mode is supported.
     virtual mqi::beamsource<T>
     create_beamsource(const mqi::dataset*                ds,
                       const mqi::modality_type           m,
@@ -131,17 +141,15 @@ public:
         return beamsource;
     }
 
-    /// Returns beamsource object
-    /// \param ds one-item of IonBeamSequence
-    /// \param m  modality type, e.g., RTIP or RTIBTR
-    /// \param pcoord  coordinate transform to map global coordinate system
-    /// \param particles_per_history a downscale factor, i.e., particles per history.
-    ///        -1 means any of beamlet generates one history (usefule for debugging).
-    /// \param source_to_isocenter_mm distance the histories are generated.
-    /// \note user don't have to touch this part typically.
-    /// \note currently we support only MODULATED beam
-    /// \note maybe return const mqi::beamsource<T>& ?
+    /// @brief Creates a beam source from a vector of spots.
     ///
+    /// This overload constructs a beam source directly from a list of spot definitions.
+    /// @param spots A vector of `mqi::beam_module_ion::spot` objects.
+    /// @param m The modality type.
+    /// @param pcoord The coordinate transform to map to the global coordinate system.
+    /// @param particles_per_history A scaling factor for the number of particles per history.
+    /// @param source_to_isocenter_mm The distance from the source to the isocenter in mm.
+    /// @return A `mqi::beamsource<T>` object.
     virtual mqi::beamsource<T>
     create_beamsource(const std::vector<mqi::beam_module_ion::spot>& spots,
                       const mqi::modality_type                       m,
@@ -186,48 +194,63 @@ public:
         return beamsource;
     }
 
-    /// User method to characterize MODULATED beamlet based on spot information from DICOM.
+    /// @brief Pure virtual method to characterize a modulated beamlet from DICOM spot information.
+    /// @param s A `spot` object from the DICOM data.
+    /// @return A `mqi::beamlet<T>` object.
     virtual mqi::beamlet<T>
     characterize_beamlet(const mqi::beam_module_ion::spot& s) = 0;
 
-    /// User method to characterize MODULATED beamlet based on spot information ans source to isocenter distnace from DICOM.
+    /// @brief Pure virtual method to characterize a modulated beamlet with a specified source-to-isocenter distance.
+    /// @param s A `spot` object from the DICOM data.
+    /// @param source_to_isocenter_mm The distance from the source to the isocenter in mm.
+    /// @return A `mqi::beamlet<T>` object.
     virtual mqi::beamlet<T>
     characterize_beamlet(const mqi::beam_module_ion::spot& s,
                          const float                       source_to_isocenter_mm) = 0;
 
-    /// User method to characterize UNIFORM/MODULATED_SPEC beamlet based on spot information from DICOM.
+    /// @brief Pure virtual method to characterize a uniform or modulated-spec beamlet from two spots.
+    /// @param s0 The starting spot.
+    /// @param s1 The ending spot.
+    /// @return A `mqi::beamlet<T>` object.
     virtual mqi::beamlet<T>
     characterize_beamlet(const mqi::beam_module_ion::spot& s0,
                          const mqi::beam_module_ion::spot& s1) = 0;
 
-    /// User method to characterize MODULATED beamlet based on spot information from Log.
-    // Connected to mqi_treatment_machine_smc_gtr2.hpp
-    // Added in 2023 by Chanil Jeon
-    // virtual mqi::beamlet<T>
-    // characterize_beamlet(const mqi::beam_module_ion::logspot& s) = 0;
-
+    /// @brief Pure virtual method to characterize a modulated beamlet from log file spot information.
+    /// @param s A `logspot` object from the log file data.
+    /// @param source_to_isocenter_mm The distance from the source to the isocenter in mm.
+    /// @param rsuse A boolean indicating whether a range shifter is used.
+    /// @return A `mqi::beamlet<T>` object.
+    /// @note Connected to `mqi_treatment_machine_smc_gtr2.hpp`. Added by Chanil Jeon in 2023.
     virtual mqi::beamlet<T>
     characterize_beamlet(const mqi::beam_module_ion::logspot& s,
         const float                       source_to_isocenter_mm,
         const bool rsuse) = 0;
 
-    /// User method to characterize beam delivery time
-    /// on_time, off_time by default 1 sec and 0 sec
+    /// @brief Characterizes the beam delivery time for a beamlet.
+    /// @param s_current The current spot.
+    /// @param s_next The next spot in the sequence.
+    /// @return An array containing the on-time and off-time in seconds. Defaults to `{1.0, 0.0}`.
     virtual std::array<T, 2>
     characterize_beamlet_time(const mqi::beam_module_ion::spot& s_current,
                               const mqi::beam_module_ion::spot& s_next) {
         return { 1.0, 0.0 };
     }
 
-    /// User method to characterize number of histories per MODULATED beamlet
-    /// based on spot information from DICOM.
+    /// @brief Calculates the number of histories for a modulated beamlet.
+    /// @param s The spot information from DICOM.
+    /// @param scale The scaling factor (particles per history).
+    /// @return The number of histories to simulate.
     virtual size_t
     characterize_history(const mqi::beam_module_ion::spot& s, float scale) {
         return s.meterset / scale;
     }
 
-    /// User method to characterize number of histories per UNIFORM/MODULATED_SPEC beamlet
-    /// based on spot information from DICOM.
+    /// @brief Calculates the number of histories for a uniform or modulated-spec beamlet.
+    /// @param s0 The starting spot.
+    /// @param s1 The ending spot.
+    /// @param scale The scaling factor (particles per history).
+    /// @return The number of histories to simulate.
     virtual size_t
     characterize_history(const mqi::beam_module_ion::spot& s0,
                          const mqi::beam_module_ion::spot& s1,
@@ -235,15 +258,14 @@ public:
         return s1.meterset / scale;
     }
 
-    /// Returns beamline object
-    /// \param ds one-item of IonBeamSequence
-    /// \param m  modality type, e.g., RTIP or RTIBTR
-    /// \note Users don't have to reimplement this method typically.
-    /// \note maybe return const mqi::beamline<T>& ?
-    /// \note coordinate_transform is not implemented here
-    /// \note coordinate_transform is handled in MC engine, i.e., TOPAS by now.
-    /// \note it's not yet clear whether to include coordinate_transform like create_beamsource
-    /// \note currently we consider range-shiter and aperture. geometry will be added later.
+    /// @brief Creates a beamline model from a dataset.
+    ///
+    /// This method constructs the beamline by identifying and characterizing components like
+    /// range shifters and apertures from the dataset.
+    /// @param ds Pointer to the dataset for one item of an `IonBeamSequence`.
+    /// @param m The modality type (e.g., `RTIP` or `RTIBTR`).
+    /// @return A `mqi::beamline<T>` object.
+    /// @note This method does not handle coordinate transformations, which are assumed to be managed by the MC engine (e.g., TOPAS).
     virtual mqi::beamline<T>
     create_beamline(const mqi::dataset* ds, mqi::modality_type m) {
         mqi::beamline<T> beamline;
@@ -269,25 +291,29 @@ public:
         return beamline;
     }
 
-    /// Returns rangeshifter
-    /// \param ds one-item of IonBeamSequence
-    /// \param m  modality type, e.g., RTIP or RTIBTR
-    /// \note Users need to implement their own rule to convert DICOM info to RS specification.
+    /// @brief Pure virtual method to characterize a range shifter.
+    /// @param ds Pointer to the dataset for one item of an `IonBeamSequence`.
+    /// @param m The modality type.
+    /// @return A pointer to a `mqi::rangeshifter` object.
+    /// @note Users must implement their own rules to convert DICOM information to range shifter specifications.
     virtual mqi::rangeshifter*
     characterize_rangeshifter(const mqi::dataset* ds, mqi::modality_type m) = 0;
 
-    /// Returns aperture
-    /// \param ds one-item of IonBeamSequence
-    /// \param m  modality type, e.g., RTIP or RTIBTR
-    /// \note Users need to implement their own rule to convert DICOM info to RS specification.
+    /// @brief Pure virtual method to characterize an aperture.
+    /// @param ds Pointer to the dataset for one item of an `IonBeamSequence`.
+    /// @param m The modality type.
+    /// @return A pointer to a `mqi::aperture` object.
+    /// @note Users must implement their own rules to convert DICOM information to aperture specifications.
     virtual mqi::aperture*
     characterize_aperture(const mqi::dataset* ds, mqi::modality_type m) = 0;
 
-    /// Returns set of (x,y) points for aperture openning.
-    /// \param ds one-item of IonBeamSequence
-    /// \param m  modality type, e.g., RTIP or RTIBTR
-    /// \note Users need to implement their own rule to convert DICOM info to APT specification.
-    /// \note multiple holes are supported.
+    /// @brief Characterizes the aperture opening from a dataset.
+    ///
+    /// This method extracts the (x, y) coordinates defining the aperture opening(s) from the `BlockSequence` in the dataset.
+    /// @param ds Pointer to the dataset for one item of an `IonBeamSequence`.
+    /// @param m The modality type.
+    /// @return A vector of vectors, where each inner vector contains the (x, y) points for a single aperture hole.
+    /// @note Multiple holes are supported.
     const std::vector<std::vector<std::array<float, 2>>>
     characterize_aperture_opening(const mqi::dataset* ds, mqi::modality_type m) {
         std::vector<std::vector<std::array<float, 2>>> apt_xy_points;
@@ -313,9 +339,12 @@ public:
         return apt_xy_points;
     }
 
-    /// Returns set of (x,y) points at z-position.
-    /// \param iso : isocenter position. iso.z is not read in by default.
-    /// \param z   : z-position where the beam starts
+    /// @brief Calculates the beam starting position based on the isocenter.
+    ///
+    /// This method projects the isocenter position back to a given z-plane to determine the beam's starting (x, y) coordinates.
+    /// @param iso The isocenter position.
+    /// @param z The z-position where the beam starts.
+    /// @return A `mqi::vec3<T>` representing the beam's starting position.
     virtual mqi::vec3<T>
     beam_starting_position(const mqi::vec3<T>& iso, T z) {
         mqi::vec3<T> beam(0, 0, z);

@@ -52,21 +52,27 @@ namespace
 namespace tk
 {
 
-// spline interpolation
+/// @class spline
+/// @brief A class for performing spline interpolation.
+///
+/// This class provides methods for linear and cubic spline interpolation. It supports
+/// different boundary conditions and can be adjusted to ensure piecewise monotonicity.
 class spline
 {
 public:
-    // spline types
+    /// @enum spline_type
+    /// @brief Defines the type of spline interpolation.
     enum spline_type {
-        linear = 10,            // linear interpolation
-        cspline = 30,           // cubic splines (classical C^2)
-        cspline_hermite = 31    // cubic hermite splines (local, only C^1)
+        linear = 10,            ///< Linear interpolation.
+        cspline = 30,           ///< Classical cubic spline (C^2 continuous).
+        cspline_hermite = 31    ///< Cubic Hermite spline (local, only C^1 continuous).
     };
 
-    // boundary condition type for the spline end-points
+    /// @enum bd_type
+    /// @brief Defines the type of boundary condition for the spline endpoints.
     enum bd_type {
-        first_deriv = 1,
-        second_deriv = 2
+        first_deriv = 1,        ///< Use a specified first derivative value.
+        second_deriv = 2        ///< Use a specified second derivative value.
     };
 
 protected:
@@ -84,14 +90,25 @@ protected:
     size_t find_closest(double x) const;    // closest idx so that m_x[idx]<=x
 
 public:
-    // default constructor: set boundary condition to be zero curvature
-    // at both ends, i.e. natural splines
+    /// @brief Default constructor.
+    ///
+    /// Sets the boundary condition to be zero curvature at both ends (natural splines).
     spline(): m_type(cspline),
         m_left(second_deriv), m_right(second_deriv),
         m_left_value(0.0), m_right_value(0.0), m_made_monotonic(false)
     {
         ;
     }
+
+    /// @brief Constructor with data points.
+    /// @param X The vector of x-coordinates.
+    /// @param Y The vector of y-coordinates.
+    /// @param type The type of spline to use.
+    /// @param make_monotonic If true, adjust the spline to be piecewise monotonic.
+    /// @param left The boundary condition type for the left endpoint.
+    /// @param left_value The value for the left boundary condition.
+    /// @param right The boundary condition type for the right endpoint.
+    /// @param right_value The value for the right boundary condition.
     spline(const std::vector<double>& X, const std::vector<double>& Y,
            spline_type type = cspline,
            bool make_monotonic = false,
@@ -110,36 +127,52 @@ public:
     }
 
 
-    // modify boundary conditions: if called it must be before set_points()
+    /// @brief Sets the boundary conditions for the spline.
+    /// @param left The boundary condition type for the left endpoint.
+    /// @param left_value The value for the left boundary condition.
+    /// @param right The boundary condition type for the right endpoint.
+    /// @param right_value The value for the right boundary condition.
+    /// @note This must be called before `set_points()`.
     void set_boundary(bd_type left, double left_value,
                       bd_type right, double right_value);
 
-    // set all data points (cubic_spline=false means linear interpolation)
+    /// @brief Sets the data points for the interpolation.
+    /// @param x The vector of x-coordinates.
+    /// @param y The vector of y-coordinates.
+    /// @param type The type of spline to use.
     void set_points(const std::vector<double>& x,
                     const std::vector<double>& y,
                     spline_type type=cspline);
 
-    // adjust coefficients so that the spline becomes piecewise monotonic
-    // where possible
-    //   this is done by adjusting slopes at grid points by a non-negative
-    //   factor and this will break C^2
-    //   this can also break boundary conditions if adjustments need to
-    //   be made at the boundary points
-    // returns false if no adjustments have been made, true otherwise
+    /// @brief Adjusts spline coefficients to make it piecewise monotonic.
+    ///
+    /// This is done by adjusting slopes at grid points by a non-negative factor,
+    /// which may break C^2 continuity and boundary conditions.
+    /// @return `true` if adjustments were made, `false` otherwise.
     bool make_monotonic();
 
-    // evaluates the spline at point x
+    /// @brief Evaluates the spline at a given point.
+    /// @param x The point at which to evaluate the spline.
+    /// @return The interpolated value.
     double operator() (double x) const;
+
+    /// @brief Evaluates the derivative of the spline at a given point.
+    /// @param order The order of the derivative (1, 2, or 3).
+    /// @param x The point at which to evaluate the derivative.
+    /// @return The value of the derivative.
     double deriv(int order, double x) const;
 
-    // returns the input data points
+    /// @brief Gets the vector of x-coordinates.
     std::vector<double> get_x() const { return m_x; }
+    /// @brief Gets the vector of y-coordinates.
     std::vector<double> get_y() const { return m_y; }
+    /// @brief Gets the minimum x-coordinate.
     double get_x_min() const { assert(!m_x.empty()); return m_x.front(); }
+    /// @brief Gets the maximum x-coordinate.
     double get_x_max() const { assert(!m_x.empty()); return m_x.back(); }
 
 #ifdef HAVE_SSTREAM
-    // spline info string, i.e. spline type, boundary conditions etc.
+    /// @brief Returns a string with information about the spline configuration.
     std::string info() const;
 #endif // HAVE_SSTREAM
 
@@ -150,35 +183,55 @@ public:
 namespace internal
 {
 
-// band matrix solver
+/// @class band_matrix
+/// @brief A class for solving systems of linear equations with a band matrix.
+///
+/// This class is used internally by the spline implementation to solve the
+/// tridiagonal system for the spline coefficients.
 class band_matrix
 {
 private:
     std::vector< std::vector<double> > m_upper;  // upper band
     std::vector< std::vector<double> > m_lower;  // lower band
 public:
-    band_matrix() {};                             // constructor
-    band_matrix(int dim, int n_u, int n_l);       // constructor
-    ~band_matrix() {};                            // destructor
-    void resize(int dim, int n_u, int n_l);      // init with dim,n_u,n_l
-    int dim() const;                             // matrix dimension
+    /// @brief Default constructor.
+    band_matrix() {};
+    /// @brief Constructor to initialize with dimensions.
+    /// @param dim The dimension of the matrix.
+    /// @param n_u The number of upper diagonals.
+    /// @param n_l The number of lower diagonals.
+    band_matrix(int dim, int n_u, int n_l);
+    /// @brief Destructor.
+    ~band_matrix() {};
+    /// @brief Resizes the matrix.
+    void resize(int dim, int n_u, int n_l);
+    /// @brief Returns the dimension of the matrix.
+    int dim() const;
+    /// @brief Returns the number of upper diagonals.
     int num_upper() const
     {
         return (int)m_upper.size()-1;
     }
+    /// @brief Returns the number of lower diagonals.
     int num_lower() const
     {
         return (int)m_lower.size()-1;
     }
-    // access operator
-    double & operator () (int i, int j);            // write
-    double   operator () (int i, int j) const;      // read
-    // we can store an additional diagonal (in m_lower)
+    /// @brief Access operator for writing.
+    double & operator () (int i, int j);
+    /// @brief Access operator for reading.
+    double   operator () (int i, int j) const;
+    /// @brief Accessor for an additional saved diagonal (used in LU decomposition).
     double& saved_diag(int i);
+    /// @brief Const accessor for the saved diagonal.
     double  saved_diag(int i) const;
+    /// @brief Performs LU decomposition of the matrix.
     void lu_decompose();
+    /// @brief Solves Rx = y for a right-triangular system.
     std::vector<double> r_solve(const std::vector<double>& b) const;
+    /// @brief Solves Ly = b for a left-triangular system.
     std::vector<double> l_solve(const std::vector<double>& b) const;
+    /// @brief Solves the full system Ax = b using LU decomposition.
     std::vector<double> lu_solve(const std::vector<double>& b,
                                  bool is_lu_decomposed=false);
 
