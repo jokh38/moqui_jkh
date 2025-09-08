@@ -41,114 +41,124 @@
 
 namespace mqi
 {
+/// \struct dicom_t
+/// \brief A struct to hold DICOM data and related information.
+///
+/// This struct aggregates all the necessary data extracted from DICOM files,
+/// such as CT scans, RT plans, and RT structures, to set up the simulation environment.
 struct dicom_t {
-    mqi::vec3<ijk_t>               dim_;       //number of voxels
-    mqi::vec3<ijk_t>               org_dim_;   //number of voxels
-    float                          dx = -1;
-    float                          dy = -1;
-    float*                         org_dz;
-    float*                         dz;
-    uint16_t                       num_vol  = 0;
-    uint16_t                       nfiles   = 0;
-    uint16_t                       n_plan   = 0;
-    uint16_t                       n_dose   = 0;
-    uint16_t                       n_struct = 0;
-    float*                         xe       = nullptr;
-    float*                         ye       = nullptr;
-    float*                         ze       = nullptr;
-    float*                         org_xe   = nullptr;
-    float*                         org_ye   = nullptr;
-    float*                         org_ze   = nullptr;
-    gdcm::Directory::FilenamesType plan_list;
-    gdcm::Directory::FilenamesType dose_list;
-    gdcm::Directory::FilenamesType struct_list;
-    gdcm::Directory::FilenamesType ct_list;
-    std::string                    plan_name   = "";
-    std::string                    struct_name = "";
-    std::string                    dose_name   = "";
-    mqi::ct<phsp_t>*               ct;
-    mqi::vec3<float>               image_center;
-    mqi::vec3<size_t>              dose_dim;
-    mqi::vec3<float>               dose_pos0;
-    float                          dose_dx;
-    float                          dose_dy;
-    float*                         dose_dz;
-    mqi::vec3<uint16_t>            clip_shift_;
-    uint8_t*                       body_contour;
+    mqi::vec3<ijk_t>               dim_;       ///< Number of voxels in the CT grid.
+    mqi::vec3<ijk_t>               org_dim_;   ///< Original number of voxels in the CT grid.
+    float                          dx;        ///< Voxel size in the x-direction.
+    float                          dy;        ///< Voxel size in the y-direction.
+    float*                         org_dz;    ///< Original voxel sizes in the z-direction.
+    float*                         dz;        ///< Voxel sizes in the z-direction.
+    uint16_t                       num_vol;   ///< Number of volumes.
+    uint16_t                       nfiles;    ///< Total number of DICOM files.
+    uint16_t                       n_plan;    ///< Number of RTPLAN files.
+    uint16_t                       n_dose;    ///< Number of RTDOSE files.
+    uint16_t                       n_struct;  ///< Number of RTSTRUCT files.
+    float*                         xe;        ///< Voxel edge positions in the x-direction.
+    float*                         ye;        ///< Voxel edge positions in the y-direction.
+    float*                         ze;        ///< Voxel edge positions in the z-direction.
+    float*                         org_xe;    ///< Original voxel edge positions in the x-direction.
+    float*                         org_ye;    ///< Original voxel edge positions in the y-direction.
+    float*                         org_ze;    ///< Original voxel edge positions in the z-direction.
+    gdcm::Directory::FilenamesType plan_list;   ///< List of RTPLAN filenames.
+    gdcm::Directory::FilenamesType dose_list;   ///< List of RTDOSE filenames.
+    gdcm::Directory::FilenamesType struct_list; ///< List of RTSTRUCT filenames.
+    gdcm::Directory::FilenamesType ct_list;     ///< List of CT filenames.
+    std::string                    plan_name;   ///< Filename of the selected RTPLAN.
+    std::string                    struct_name; ///< Filename of the selected RTSTRUCT.
+    std::string                    dose_name;   ///< Filename of the selected RTDOSE.
+    mqi::ct<phsp_t>*               ct;          ///< Pointer to the CT data object.
+    mqi::vec3<float>               image_center;///< Center of the CT image.
+    mqi::vec3<size_t>              dose_dim;    ///< Dimensions of the dose grid.
+    mqi::vec3<float>               dose_pos0;   ///< Position of the first voxel in the dose grid.
+    float                          dose_dx;     ///< Voxel size of the dose grid in the x-direction.
+    float                          dose_dy;     ///< Voxel size of the dose grid in the y-direction.
+    float*                         dose_dz;     ///< Voxel sizes of the dose grid in the z-direction.
+    mqi::vec3<uint16_t>            clip_shift_;///< Shift for CT clipping.
+    uint8_t*                       body_contour;///< Body contour mask.
 };
 
 
 
+/// \class tps_env
+/// \brief Manages a simulation environment based on a Treatment Planning System (TPS).
+/// \tparam R The floating-point type used for simulation (e.g., float or double).
+///
+/// This class extends x_environment to create a simulation setup based on data from a TPS.
+/// It reads and parses DICOM files (CT, RTPLAN, RTSTRUCT) and log files to configure
+/// the patient geometry, materials, beam source, and scorers.
 template<typename R>
 class tps_env : public x_environment<R>
 {
 public:
-    std::string input_filename   = "";
-    std::string delimeter        = " ";
-    int         master_seed      = 0;
-    std::string machine_name     = "";
-    bool        score_to_ct_grid = true;
-    std::string output_path      = "";
-    std::string output_format =
-      "";   /// currently support mhd, other than mhd are considered as binary
-    /// Scorer parameters
-    std::string   scorer_string;
-    mqi::scorer_t scorer_type;
-    bool          score_variance = false;
-    std::string   source_type    = "FluenceMap";
-    /// Simulation parameters
-    mqi::sim_type_t            sim_type;
-    std::vector<int>           beam_numbers;
-    std::string                parent_dir = "";
-    std::string                dicom_dir  = "";
-    std::string                logfile_dir = ""; // Log file dir added in 2023-11-01
+    std::string input_filename;   ///< Path to the input parameter file.
+    std::string delimeter;        ///< Delimiter used in the input file.
+    int         master_seed;      ///< Master seed for the random number generator.
+    std::string machine_name;     ///< Name of the treatment machine.
+    bool        score_to_ct_grid; ///< Flag to score dose on the CT grid.
+    std::string output_path;      ///< Path to the
+    std::string output_format;    ///< Format of the output files (e.g., mhd, raw, npz).
+    std::string   scorer_string;  ///< Name of the scorer to be used.
+    mqi::scorer_t scorer_type;    ///< Type of the scorer.
+    bool          score_variance; ///< Flag to score variance.
+    std::string   source_type;    ///< Type of the particle source.
+    mqi::sim_type_t            sim_type;       ///< Type of the simulation (per-beam, per-spot, per-patient).
+    std::vector<int>           beam_numbers;   ///< List of beam numbers to simulate.
+    std::string                parent_dir;     ///< Path to the parent directory of the patient data.
+    std::string                dicom_dir;      ///< Path to the DICOM directory.
+    std::string                logfile_dir;    ///< Path to the log file directory.
+    int selectedGantryNumber; ///< Selected gantry number (1 or 2).
+    bool usingPhantomGeo;     ///< Flag to use a phantom geometry instead of patient CT.
+    bool twoCentimeterMode;   ///< Flag for a specific patient QA mode.
+    int phantomDimX;          ///< X dimension of the phantom.
+    int phantomDimY;          ///< Y dimension of the phantom.
+    int phantomDimZ;          ///< Z dimension of the phantom.
+    int phantomUnitX;         ///< Voxel size in X for the phantom.
+    int phantomUnitY;         ///< Voxel size in Y for the phantom.
+    int phantomUnitZ;         ///< Voxel size in Z for the phantom.
+    float phantomPositionX;   ///< X position of the phantom.
+    float phantomPositionY;   ///< Y position of the phantom.
+    float phantomPositionZ;   ///< Z position of the phantom.
 
-    int selectedGantryNumber = 2; // Basic gantry is G2
-    bool usingPhantomGeo = false; // to use phantom environment, added in 2024-04-11
-    bool twoCentimeterMode = false; // to use patient-specific QA
-    int phantomDimX = 400;
-    int phantomDimY = 400;
-    int phantomDimZ = 400;
-    int phantomUnitX = 1;
-    int phantomUnitY = 1;
-    int phantomUnitZ = 1;
-    float phantomPositionX = -200.f;
-    float phantomPositionY = -200.f;
-    float phantomPositionZ = -200.f;
-
-    std::vector<std::string>   parameters_total;
-    std::vector<std::string>   mask_filenames;
-    bool                       scoring_mask      = false;
-    bool                       overwrite_results = false;
-    bool                       use_absolute_path;
-    size_t                     max_histories_per_batch;
-    bool                       memory_save_mode;
-    bool                       save_scorer_map;
-    std::string                scorer_map_prefix;
-    dicom_t                    dcm_;
-    logfiles_t                 log_file;
-    int16_t*                   ct_data;
-    mqi::treatment_session<R>* tx;
-    uint16_t                   bnb                   = 0;
-    float                      sid                   = 0.0;
-    float                      particles_per_history = -1.0;
-    std::string                beam_prefix;
-    density_t*                 stopping_power;
-    float                      max_let_in_water;
-    int                        aperture_ind  = -1;
-    mqi::aperture_type_t       aperture_type = mqi::VOLUME;
-    std::vector<float>         scorer_voxel_size;
-    bool                       ct_clipping;
-    int                        verbosity;
-    std::string                body_contour_name;
-    bool                       read_structure;
-    uint32_t                   scorer_size;
-    uint32_t                   scorer_capacity;
-    bool                       reshape_output = false;
-    bool                       sparse_output  = false;
+    std::vector<std::string>   parameters_total;  ///< All parameters from the input file.
+    std::vector<std::string>   mask_filenames;    ///< Filenames of the scoring masks.
+    bool                       scoring_mask;      ///< Flag to use a scoring mask.
+    bool                       overwrite_results; ///< Flag to overwrite existing results.
+    bool                       use_absolute_path; ///< Flag to use absolute paths.
+    size_t                     max_histories_per_batch; ///< Maximum number of histories per simulation batch.
+    bool                       memory_save_mode;  ///< Flag for memory saving mode.
+    bool                       save_scorer_map;   ///< Flag to save the scorer map.
+    std::string                scorer_map_prefix; ///< Prefix for the scorer map filename.
+    dicom_t                    dcm_;              ///< Struct holding DICOM data.
+    logfiles_t                 log_file;          ///< Struct holding log file data.
+    int16_t*                   ct_data;           ///< Pointer to the CT data.
+    mqi::treatment_session<R>* tx;                ///< Pointer to the treatment session object.
+    uint16_t                   bnb;               ///< Current beam number.
+    float                      sid;               ///< Source-to-isocenter distance.
+    float                      particles_per_history; ///< Number of particles per history.
+    std::string                beam_prefix;       ///< Prefix for beam-related files.
+    density_t*                 stopping_power;    ///< Stopping power data.
+    float                      max_let_in_water;  ///< Maximum LET in water.
+    int                        aperture_ind;      ///< Index of the aperture.
+    mqi::aperture_type_t       aperture_type;     ///< Type of the aperture.
+    std::vector<float>         scorer_voxel_size; ///< Voxel size for the scorer.
+    bool                       ct_clipping;       ///< Flag for CT clipping.
+    int                        verbosity;         ///< Verbosity level.
+    std::string                body_contour_name; ///< Name of the body contour ROI.
+    bool                       read_structure;    ///< Flag to read the RTSTRUCT file.
+    uint32_t                   scorer_size;       ///< Size of the scorer.
+    uint32_t                   scorer_capacity;   ///< Capacity of the scorer.
+    bool                       reshape_output;    ///< Flag to reshape the output.
+    bool                       sparse_output;     ///< Flag for sparse output format.
     //    std::default_random_engine beam_rng;
 
 public:
+    /// \brief Constructs a new tps_env object.
+    /// \param[in] input_name The path to the input parameter file.
     CUDA_HOST
     tps_env(const std::string input_name) : x_environment<R>() {
         std::cout << "--------------------------------------------------------------------------------" << std::endl;
@@ -350,11 +360,13 @@ public:
         }
     }
 
+    /// \brief Destroys the tps_env object.
     CUDA_HOST
     ~tps_env() {
         ;
     }
 
+    /// \brief Prints the simulation parameters to the console.
     CUDA_HOST
     virtual void
     print_parameters() {
@@ -406,6 +418,8 @@ public:
         }
     }
 
+    /// \brief Reads DICOM files from the specified directory and populates the dicom_t struct.
+    /// \return A dicom_t struct containing the parsed DICOM data.
     CUDA_HOST
     virtual struct dicom_t
     read_dcm_dir() 
@@ -657,8 +671,9 @@ public:
         return dcm;
     }
 
-    /* Log file reading function, added in 2023-11-02 by Chanil Jeon */
-    // Function for log file reading
+    /// \brief Reads log files from the specified directory.
+    /// \param[in] beamIndex The index of the beam to read log files for.
+    /// \return A logfiles_t struct containing the parsed log file data.
     CUDA_HOST
     virtual struct logfiles_t
     read_logfile_dir(int beamIndex)
@@ -753,6 +768,7 @@ public:
         return logFileData;
     }
 
+    /// \brief Sets up the materials for the simulation.
     CUDA_HOST
     virtual void
     setup_materials() {
@@ -763,6 +779,7 @@ public:
         this->materials[2] = mqi::brass_t<R>();
     }
 
+    /// \brief Sets up the world geometry, including the patient geometry from CT data and beamline components.
     CUDA_HOST
     virtual void
     setup_world() {
@@ -1067,7 +1084,7 @@ public:
         mc::mc_score_variance = this->score_variance;
     }
 
-    // Beam source loading code
+    /// \brief Sets up the particle beam source based on the treatment plan and log files.
     CUDA_HOST
     virtual void
     setup_beamsource() {
@@ -1134,6 +1151,7 @@ public:
         std::cout << "Creating beam source complete!" << std::endl;
     }
 
+    /// \brief Initializes and runs the simulation for all specified beams.
     CUDA_HOST
     void
     initialize_and_run() {
@@ -1152,6 +1170,7 @@ public:
             }
         }
     }
+    /// \brief Runs the simulation based on the specified simulation type (per-beam or per-spot).
     CUDA_HOST
     virtual void
     run() {
@@ -1176,6 +1195,11 @@ public:
         }
     }   // run
 
+    /// \brief Runs a batch of the simulation.
+    /// \param[in] histories_per_batch The total number of histories in the batch.
+    /// \param[in] histories_in_batch The number of histories to be simulated in this run.
+    /// \param[out] tracked_particles A pointer to a counter for tracked particles.
+    /// \param[in] scorer_offset_vector A pointer to the scorer offset vector for per-spot scoring.
     CUDA_HOST
     virtual void
     run_simulation(size_t    histories_per_batch,
@@ -1274,6 +1298,14 @@ public:
 #endif
     }   //run_simulation
 
+    /// \brief Reads vertices for a spot and populates the vertices and score offset vector.
+    /// \param[in] history_start The starting index for the history.
+    /// \param[in] history_end The ending index for the history.
+    /// \param[in] bl The beamlet tuple containing beamlet object, number of histories, and offset.
+    /// \param[out] vertices A pointer to the array of vertices to be filled.
+    /// \param[out] score_offset_vector A pointer to the score offset vector.
+    /// \param[in] spot_ind The index of the spot.
+    /// \param[in] histories_per_batch The total number of histories in the batch.
     CUDA_HOST
     void
     read_vertices_spot(size_t                                      history_start,
@@ -1291,6 +1323,8 @@ public:
             assert(history_ind < histories_per_batch);
         }
     }
+    /// \brief Runs the simulation on a per-beam basis.
+    /// \param[in] world A pointer to the world node.
     CUDA_HOST
     virtual void
     run_by_beam(mqi::node_t<R>* world = mc::mc_world) {
@@ -1337,9 +1371,8 @@ public:
 
     }   //run_by_beam
 
-    // Change RT file based beam generation to log file based generation
-    // 2023-11-01
-
+    /// \brief Runs the simulation on a per-spot basis.
+    /// \param[in] world A pointer to the world node.
     CUDA_HOST
     virtual void
     run_by_spot(mqi::node_t<R>* world = mc::mc_world) {
@@ -1448,6 +1481,10 @@ public:
 
     }   // run_by_spot
 
+    /// \brief Creates a rangeshifter geometry node.
+    /// \param[in] geometry A pointer to the rangeshifter geometry object.
+    /// \param[in] p_coord The coordinate transformation for the rangeshifter.
+    /// \return A pointer to the created rangeshifter node.
     virtual mqi::node_t<R>*
     create_rangeshifter(mqi::rangeshifter* geometry, mqi::coordinate_transform<R> p_coord) {
         mqi::node_t<R>* rangeshifter = new mqi::node_t<R>;
@@ -1499,6 +1536,11 @@ public:
 
         return rangeshifter;
     }
+    /// \brief A point-in-polygon test to determine if a point is inside a contour.
+    /// \param[in] pos The 2D position of the point to check.
+    /// \param[in] contour_points A pointer to the array of contour points.
+    /// \param[in] num_points The number of points in the contour.
+    /// \return True if the point is inside the contour, false otherwise.
     CUDA_HOST_DEVICE
     bool
     sol1_1(mqi::vec2<float> pos, mqi::vec3<float>*& contour_points, int num_points) {
@@ -1518,6 +1560,16 @@ public:
         }
         return c;
     }
+    /// \brief Fills a volume with a contour, creating a binary mask.
+    /// \param[out] volume_contour A pointer to the volume to be filled.
+    /// \param[in] contour_points A pointer to the array of contour points.
+    /// \param[in] num_contour_points The number of points in the contour.
+    /// \param[in] dim The dimensions of the volume.
+    /// \param[in] x_pix A pointer to the x-coordinates of the voxels.
+    /// \param[in] y_pix A pointer to the y-coordinates of the voxels.
+    /// \param[in] z_pix A pointer to the z-coordinates of the voxels.
+    /// \param[in] dx The voxel size in the x-direction.
+    /// \param[in] dy The voxel size in the y-direction.
     CUDA_HOST_DEVICE
     void
     fill_contour(uint8_t*           volume_contour,
@@ -1556,6 +1608,11 @@ public:
         }
     }
 
+    /// \brief Reshapes the scored data from a sparse format to a dense 3D grid.
+    /// \param[in] c_ind The index of the child node.
+    /// \param[in] s_ind The index of the scorer.
+    /// \param[in] dim The dimensions of the output grid.
+    /// \return A pointer to the reshaped data.
     CUDA_HOST
     double*
     reshape_data(int c_ind, int s_ind, mqi::vec3<ijk_t> dim) {
@@ -1578,6 +1635,7 @@ public:
         return reshaped_data;
     }
 
+    /// \brief Saves the reshaped simulation results to files in various formats (mhd, mha, raw).
     CUDA_HOST
     void
     save_reshaped_files() {
@@ -1621,6 +1679,7 @@ public:
         }
     }
 
+    /// \brief Saves the simulation results in a sparse format (npz).
     CUDA_HOST
     virtual void
     save_sparse_file() {
@@ -1648,6 +1707,7 @@ public:
         //printf("Reshape and save to npz done %f ms\n", duration.count());
     }
 
+    /// \brief Saves the simulation results to binary files.
     CUDA_HOST
     virtual void
     save_files() {

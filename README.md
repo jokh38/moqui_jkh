@@ -23,6 +23,7 @@ This project provides the low-level components for building complex simulations,
 -   A C++ compiler that supports C++11 or later.
 -   CMake (version 3.10 or later).
 -   (Optional) NVIDIA CUDA Toolkit (version 10.0 or later) for GPU acceleration.
+-   [GDCM](http://gdcm.sourceforge.net/) (Grassroots DICOM) library for DICOM file handling.
 
 ### Installation
 
@@ -58,17 +59,48 @@ The project can be used as a library in your own C++ applications or through the
 
 ### As a Library
 
-To use Moqui C++ as a library, you can include the necessary headers in your source files and link against the compiled library.
+To use Moqui C++ as a library, you can include the necessary headers in your source files and link against the compiled library. The `base/` directory contains the core headers for building your simulation.
 
 ### Command-Line Interface
 
 The project includes several command-line tools for running simulations and tests. These tools can be found in the `build/bin` directory after building the project.
 
-For example, to run a simulation using a DICOM-RT Ion Plan, you might use a command like this:
+A typical simulation is run using an input file that specifies the parameters for the simulation. For example:
+
 ```bash
-./path/to/executable --dicom_path /path/to/dicom --bname "MyBeam" --nhistory 1000000
+./path/to/executable -i /path/to/your/input.txt
 ```
-For a full list of available options, you can run the executable with the `--help` flag.
+
+An example `input.txt` file might look like this:
+
+```
+# Simulation Parameters
+GPUID                   0
+RandomSeed              12345
+ParentDir               /path/to/patient/data
+DicomDir                DICOM
+logFilePath             Logs
+OutputDir               /path/to/output/dir
+OutputFormat            mhd
+OverwriteResults        true
+SimulationType          perBeam
+BeamNumbers             1,2,3
+ParticlesPerHistory     1000.0
+```
+
+For a full list of available options and parameters, please refer to the documentation.
+
+## Documentation
+
+Comprehensive documentation for the Moqui C++ API is generated using Doxygen. To generate the documentation, you will need to have Doxygen installed. From the root of the repository, you can run:
+
+```bash
+doxygen Doxyfile
+```
+
+This will generate an HTML documentation in the `docs/html` directory.
+
+The `code_structure.md` file provides a high-level overview of the repository's structure, and `progress.md` tracks the documentation status of the files.
 
 ## Project Structure
 
