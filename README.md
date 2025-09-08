@@ -59,7 +59,7 @@ The project can be used as a library in your own C++ applications or through the
 
 ### As a Library
 
-To use Moqui C++ as a library, you can include the necessary headers in your source files and link against the compiled library. The `base/` directory contains the core headers for building your simulation.
+To use Moqui C++ as a library, you can include the necessary headers in your source files and link against the compiled library. The `base/` directory contains the core headers for building your simulation. The main entry point for simulations is typically through the `mqi::treatment_session` class.
 
 ### Command-Line Interface
 
@@ -88,7 +88,23 @@ BeamNumbers             1,2,3
 ParticlesPerHistory     1000.0
 ```
 
-For a full list of available options and parameters, please refer to the documentation.
+#### Common Input Parameters
+
+| Parameter           | Description                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| `GPUID`             | The ID of the GPU to use for the simulation.                                                            |
+| `RandomSeed`        | The seed for the random number generator.                                                               |
+| `ParentDir`         | The parent directory containing the patient data.                                                       |
+| `DicomDir`          | The subdirectory within `ParentDir` that contains the DICOM files.                                      |
+| `logFilePath`       | The path to the directory where log files will be saved.                                                |
+| `OutputDir`         | The path to the directory where output files (e.g., dose grids) will be saved.                          |
+| `OutputFormat`      | The format for the output files (e.g., `mhd`, `raw`).                                                     |
+| `OverwriteResults`  | If `true`, existing output files will be overwritten.                                                   |
+| `SimulationType`    | The type of simulation to run (`perBeam` or `perSpot`).                                                 |
+| `BeamNumbers`       | A comma-separated list of beam numbers to simulate.                                                     |
+| `ParticlesPerHistory` | The number of particles to simulate per history.                                                        |
+
+For a full list of available options and parameters, please refer to the source code and the documentation.
 
 ## Documentation
 
@@ -100,14 +116,18 @@ doxygen Doxyfile
 
 This will generate an HTML documentation in the `docs/html` directory.
 
-The `code_structure.md` file provides a high-level overview of the repository's structure, and `progress.md` tracks the documentation status of the files.
+The `code_structure.md` file provides a high-level overview of the repository's structure, and `progress.md` tracks the documentation status of the files. The `todolist.txt` file outlines the remaining documentation work.
 
 ## Project Structure
 
 The repository is organized into the following main directories:
 
--   `base/`: Contains the core classes and data structures for the Moqui toolkit, such as geometries, beam models, and physics interactions.
--   `kernel_functions/`: Contains CUDA kernels and other GPU-related code.
+-   `base/`: Contains the core classes and data structures for the Moqui toolkit.
+    -   `distributions/`: Particle phase-space distributions.
+    -   `environments/`: Simulation environments, such as phantoms and patient-specific setups.
+    -   `materials/`: Material definitions and properties.
+    -   `scorers/`: Classes for scoring physical quantities like dose and LET.
+-   `kernel_functions/`: Contains CUDA kernels and other GPU-related code for high-performance computations.
 -   `treatment_machines/`: Contains definitions for specific treatment machine models.
 
 A detailed breakdown of the file structure can be found in `code_structure.md`.

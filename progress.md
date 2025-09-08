@@ -31,3 +31,13 @@ The following files have been fully documented with Doxygen-style docstrings:
 23. `base/materials/mqi_material.hpp`
 24. `base/materials/mqi_material_ct.hpp`
 25. `base/materials/mqi_patient_materials.hpp`
+26. `base/scorers/mqi_scorer_energy_deposit.hpp`
+27. `base/mqi_coordinate_transform.hpp`
+28. `base/mqi_ct.hpp`
+29. `base/mqi_dataset.hpp`
+30. `base/mqi_distributions.hpp`
+31. `base/mqi_error_check.hpp`
+32. `base/mqi_file_handler.hpp`
+33. `base/mqi_fippel_physics.hpp`
+34. `base/mqi_geometry.hpp`
+35. `base/mqi_grid3d.hpp`

@@ -1,3 +1,6 @@
+/// \file
+/// \brief Defines classes for file handling, including reading mask files and parsing configuration files.
+
 #ifndef MQI_FILE_HANDLER_HPP
 #define MQI_FILE_HANDLER_HPP
 
@@ -10,31 +13,52 @@
 namespace mqi
 {
 
+/// \class mask_reader
+/// \brief A class for reading and processing 3D mask files in MHA format.
+///
+/// This class provides functionality to read one or more mask files, combine them,
+/// and generate mappings or regions of interest (ROI) based on the mask data.
 class mask_reader
 {
 public:
+    ///< A list of filenames for the mask files to be read.
     std::vector<std::string> mask_filenames;
-    mqi::vec3<ijk_t>         ct_dim;
-    size_t                   ct_size;
-    uint8_t*                 mask_total;
+    ///< The dimensions of the corresponding CT grid.
+    mqi::vec3<ijk_t> ct_dim;
+    ///< The total size of the CT grid (nx * ny * nz).
+    size_t ct_size;
+    ///< A pointer to the combined mask data.
+    uint8_t* mask_total;
+
+    /// \brief Default constructor.
     mask_reader() {
         ;
     }
 
+    /// \brief Constructs a mask_reader with given CT dimensions.
+    /// \param[in] ct_dim The dimensions of the CT grid.
     mask_reader(mqi::vec3<ijk_t> ct_dim) {
         this->ct_dim  = ct_dim;
         this->ct_size = ct_dim.x * ct_dim.y * ct_dim.z;
     }
+
+    /// \brief Constructs a mask_reader with a list of files and CT dimensions.
+    /// \param[in] filelist A vector of mask file paths.
+    /// \param[in] ct_dim The dimensions of the CT grid.
     mask_reader(std::vector<std::string> filelist, mqi::vec3<ijk_t> ct_dim) {
         this->mask_filenames = filelist;
         this->ct_dim         = ct_dim;
         this->ct_size        = ct_dim.x * ct_dim.y * ct_dim.z;
     }
 
+    /// \brief Destructor.
     ~mask_reader() {
         ;
     }
 
+    /// \brief Reads a single mask file in MHA format.
+    /// \param[in] filename The path to the MHA file.
+    /// \return A pointer to the mask data as an array of `uint8_t`.
     CUDA_HOST
     uint8_t*
     read_mha_file(std::string filename) {
@@ -88,7 +112,10 @@ public:
         return mask;
     }
 
-    CUDA_HOST
+    /// \brief Reads and combines multiple mask files.
+    ///
+    /// This method iterates through the `mask_filenames` list, reads each file,
+    /// and combines them into a single `mask_total` array.
     CUDA_HOST
     void
     read_mask_files() {
@@ -112,6 +139,9 @@ public:
         }
     }
 
+    /// \brief Creates a mapping from voxel index to scorer index based on a mask.
+    /// \param[in] mask A pointer to the mask data.
+    /// \return A pointer to an array where each element is the scorer index or -1 if masked out.
     CUDA_HOST
     int32_t*
     mask_mapping(uint8_t* mask) {
@@ -128,6 +158,8 @@ public:
         return scorer_idx;
     }
 
+    /// \brief Creates a default identity mapping.
+    /// \return A pointer to an array where each voxel index maps to itself.
     CUDA_HOST
     int32_t*
     mask_mapping() {
@@ -138,6 +170,9 @@ public:
         return scorer_idx;
     }
 
+    /// \brief Calculates the number of active voxels in a scorer index map.
+    /// \param[in] scorer_idx The scorer index map.
+    /// \return The number of active (non-negative) voxels.
     CUDA_HOST
     uint32_t
     size(int32_t* scorer_idx) {
@@ -148,6 +183,9 @@ public:
         return count;
     }
 
+    /// \brief Saves the voxel-to-scorer index map to a file.
+    /// \param[in] filename The name of the file to save to.
+    /// \param[in] scorer_idx The scorer index map to save.
     CUDA_HOST
     void
     save_map(std::string filename, int32_t* scorer_idx) {
@@ -157,17 +195,28 @@ public:
         }
         fid0.close();
     }
+
+    /// \brief Sets the total mask from an external source.
+    /// \param[in] mask A pointer to the external mask data.
     CUDA_HOST
     void
     set_mask(uint8_t* mask) {
         this->mask_total = mask;
     }
 
+    /// \brief Converts 3D grid indices (i, j, k) to a 1D voxel index (cnb).
+    /// \param[in] i The x-index.
+    /// \param[in] j The y-index.
+    /// \param[in] k The z-index.
+    /// \return The 1D voxel index.
     CUDA_HOST
     cnb_t
     ijk2cnb(ijk_t i, ijk_t j, ijk_t k) {
         return k * this->ct_dim.x * this->ct_dim.y + j * this->ct_dim.x + i;
     }
+
+    /// \brief Converts the total mask into a region of interest (ROI).
+    /// \return A pointer to the newly created `mqi::roi_t` object.
     CUDA_HOST
     mqi::roi_t*
     mask_to_roi() {
@@ -213,22 +262,36 @@ public:
     }
 };
 
+/// \class file_parser
+/// \brief A class for parsing key-value pair configuration files.
+///
+/// This class reads a configuration file, parses the parameters, and provides
+/// methods to retrieve values by key, with support for various data types.
 class file_parser
 {
 public:
-    std::string              filename;
-    std::string              delimeter;
+    ///< The path to the configuration file.
+    std::string filename;
+    ///< The delimiter used to separate keys and values.
+    std::string delimeter;
+    ///< A vector containing all lines read from the configuration file.
     std::vector<std::string> parameters_total;
 
+    /// \brief Constructs a file_parser object.
+    /// \param[in] filename The path to the configuration file.
+    /// \param[in] delimeter The delimiter string.
     file_parser(std::string filename, std::string delimeter) {
         this->filename         = filename;
         this->delimeter        = delimeter;
         this->parameters_total = read_input_parameters();
     }
+    /// \brief Destructor.
     ~file_parser() {
         ;
     }
 
+    /// \brief Reads all lines from the input file.
+    /// \return A vector of strings, where each string is a line from the file.
     CUDA_HOST
     std::vector<std::string>
     read_input_parameters() {
@@ -253,6 +316,9 @@ public:
         return parameters_total;
     }
 
+    /// \brief Extracts the directory path from a full file path.
+    /// \param[in] filepath The full path to the file.
+    /// \return The directory path.
     CUDA_HOST
     std::string
     get_path(std::string filepath) {
@@ -273,6 +339,10 @@ public:
         return path;
     }
 
+    /// \brief Gets a string value for a given option key.
+    /// \param[in] option The key of the parameter to retrieve.
+    /// \param[in] default_value The value to return if the key is not found.
+    /// \return The parameter value as a string.
     CUDA_HOST
     std::string
     get_string(std::string option, std::string default_value) {
@@ -291,6 +361,10 @@ public:
         return value;
     }
 
+    /// \brief Gets a vector of strings for a given option key.
+    /// \param[in] option The key of the parameter to retrieve.
+    /// \param[in] delimeter1 The delimiter used to separate values within the string.
+    /// \return A vector of strings.
     CUDA_HOST
     std::vector<std::string>
     get_string_vector(std::string option, std::string delimeter1) {
@@ -310,6 +384,10 @@ public:
         return values;
     }
 
+    /// \brief Gets a float value for a given option key.
+    /// \param[in] option The key of the parameter to retrieve.
+    /// \param[in] default_value The value to return if the key is not found.
+    /// \return The parameter value as a float.
     CUDA_HOST
     float
     get_float(std::string option, float default_value) {
@@ -317,6 +395,10 @@ public:
         return value;
     }
 
+    /// \brief Gets a vector of floats for a given option key.
+    /// \param[in] option The key of the parameter to retrieve.
+    /// \param[in] delimter The delimiter used to separate values within the string.
+    /// \return A vector of floats.
     CUDA_HOST
     std::vector<float>
     get_float_vector(std::string option, std::string delimter) {
@@ -333,6 +415,10 @@ public:
         }
     }
 
+    /// \brief Gets an integer value for a given option key.
+    /// \param[in] option The key of the parameter to retrieve.
+    /// \param[in] default_value The value to return if the key is not found.
+    /// \return The parameter value as an integer.
     CUDA_HOST
     int
     get_int(std::string option, int default_value) {
@@ -340,6 +426,10 @@ public:
         return value;
     }
 
+    /// \brief Gets a vector of integers for a given option key.
+    /// \param[in] option The key of the parameter to retrieve.
+    /// \param[in] delimeter The delimiter used to separate values within the string.
+    /// \return A vector of integers.
     CUDA_HOST
     std::vector<int>
     get_int_vector(std::string option, std::string delimeter) {
@@ -356,6 +446,10 @@ public:
         }
     }
 
+    /// \brief Gets a boolean value for a given option key.
+    /// \param[in] option The key of the parameter to retrieve.
+    /// \param[in] default_value The value to return if the key is not found.
+    /// \return The parameter value as a boolean.
     CUDA_HOST
     bool
     get_bool(std::string option, bool default_value) {
@@ -364,6 +458,9 @@ public:
         return value;
     }
 
+    /// \brief Converts a string to a scorer type enum.
+    /// \param[in] scorer_name The name of the scorer.
+    /// \return The corresponding `scorer_t` enum value.
     CUDA_HOST
     scorer_t
     string_to_scorer_type(std::string scorer_name) {
@@ -386,6 +483,9 @@ public:
         return type;
     }
 
+    /// \brief Converts a string to an aperture type enum.
+    /// \param[in] aperture_string The name of the aperture type.
+    /// \return The corresponding `aperture_type_t` enum value.
     CUDA_HOST
     aperture_type_t
     string_to_aperture_type(std::string aperture_string) {
@@ -400,6 +500,9 @@ public:
         return type;
     }
 
+    /// \brief Converts a string to a simulation type enum.
+    /// \param[in] sim_name The name of the simulation type.
+    /// \return The corresponding `sim_type_t` enum value.
     CUDA_HOST
     sim_type_t
     string_to_sim_type(std::string sim_name) {

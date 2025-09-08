@@ -1,65 +1,64 @@
-#ifndef MQI_GRID3D_H
-#define MQI_GRID3D_H
-
 /// \file
 ///
-/// Rectlinear grid geometry for MC transport
+/// \brief Defines a 3D rectilinear grid for use in Monte Carlo transport simulations.
 ///
+/// This file contains the definition of the `mqi::grid3d` class, a versatile
+/// template for representing 3D spatial data such as dose grids or CT volumes.
+/// It also defines the `mqi::intersect_t` struct for handling ray-grid intersection calculations.
+
+#ifndef MQI_GRID3D_H
+#define MQI_GRID3D_H
 
 #include <moqui/base/mqi_common.hpp>
 #include <moqui/base/mqi_coordinate_transform.hpp>
 #include <moqui/base/mqi_math.hpp>
 #include <moqui/base/mqi_vec.hpp>
-//typedef double phsp_t;
 
 namespace mqi
 {
 
-///< struct to describe intersect information
-///  plane is between v0 ~ v1 ?
+/// \struct intersect_t
+/// \brief Describes the result of a ray-grid intersection.
+/// \tparam R The floating-point type for coordinate calculations.
 template<typename R>
 struct intersect_t {
-    R              dist;   //distance to the intersection plane (cell), invalid when dist < 0
-    cell_side      side;   //side of entering cell
-    vec3<ijk_t>    cell;   //index of entering cell
-    transport_type type;   // type of current node's geometry
+    R              dist; ///< The distance to the intersection plane. Negative if no intersection.
+    cell_side      side; ///< The side of the cell that was entered.
+    vec3<ijk_t>    cell; ///< The index (i,j,k) of the intersected cell.
+    transport_type type; ///< The type of geometry of the current node.
 };
 
 /// \class grid3d
-/// \tparam T for grid values, e.g., dose, HU, vector
-/// \tparam R for grid coordinates, float, double, etc.
+/// \brief A template class for a 3D rectilinear grid.
+/// \tparam T The type of the data stored in the grid cells (e.g., dose, HU value).
+/// \tparam R The floating-point type for the grid's coordinates.
 template<typename T, typename R>
 class grid3d
 {
 
 protected:
-    ///< Number of data points (pixels) not edges.
-    /// dim_.x, dim_.y, dim_.z
+    ///< The dimensions of the grid (number of voxels in each direction).
     mqi::vec3<ijk_t> dim_;
 
-    /// the edge positions of pixels
-    /// Bounding box xe_[0], xe_[max]
-    /// number of edge points is dim_.x/y/z + 1
-    /// acsending order
-    /// TODO: const R* xe_ ?
-    R* xe_ = nullptr;   ///< x_min, ..., x_max
-    R* ye_ = nullptr;   ///< y_min, ..., y_max
-    R* ze_ = nullptr;   ///< z_min, ..., z_max
+    ///< Pointers to arrays defining the grid-edge coordinates along each axis.
+    R* xe_ = nullptr;
+    R* ye_ = nullptr;
+    R* ze_ = nullptr;
 
-    /// Two edge position of bounding box
-    mqi::vec3<R> V000_;   ///< coner x_min, y_min, z_min
-    mqi::vec3<R> V111_;   ///< coner x_max, y_max, z_max
-    mqi::vec3<R> C_;      ///< Center
+    ///< The corners of the grid's bounding box.
+    mqi::vec3<R> V000_; ///< The corner with the minimum coordinates (x_min, y_min, z_min).
+    mqi::vec3<R> V111_; ///< The corner with the maximum coordinates (x_max, y_max, z_max).
+    mqi::vec3<R> C_;    ///< The center of the bounding box.
 
-    mqi::vec3<R> n100_;   ///< normal vector of 1st (X) axis
-    mqi::vec3<R> n010_;   ///< normal vector of 2nd (Y) axis
-    mqi::vec3<R> n001_;   ///< normal vector of 3rd (Z) axis
+    ///< Normal vectors for each axis of the grid.
+    mqi::vec3<R> n100_;
+    mqi::vec3<R> n010_;
+    mqi::vec3<R> n001_;
 
-    ///< Data in this rectlinear
-    ///< size: dim_.x*dim_.y*dim_.z
+    ///< A pointer to the grid's data array.
     T* data_ = nullptr;
 
-    ///< Calculate C000/C111
+    /// \brief Calculates the bounding box corners and center.
     CUDA_HOST_DEVICE
     void
     calculate_bounding_box(void) {
@@ -89,20 +88,26 @@ protected:
     }
 
 public:
+    ///< Forward rotation matrix for oriented grids.
     mqi::mat3x3<R> rotation_matrix_fwd;
+    ///< Inverse rotation matrix for oriented grids.
     mqi::mat3x3<R> rotation_matrix_inv;
-    mqi::vec3<R>   translation_vector;
-    ///< Default constructor only for child classes
-    ///cuda_host_device or cuda_host
-    /// note (Feb27,2020): it may be uesless
+    ///< Translation vector for oriented grids.
+    mqi::vec3<R> translation_vector;
+
+    /// \brief Default constructor.
     CUDA_HOST_DEVICE
     grid3d() {
         ;
     }
 
-    /// Construct a rectlinear grid from array of x/y/z with their size
-    /// \param x,y,z  1D array of central points of voxels along x-axis
-    /// \param xn,yn,zn  size of 1D array for points.
+    /// \brief Constructs a grid from arrays of edge coordinates.
+    /// \param[in] xe Array of x-edge coordinates.
+    /// \param[in] n_xe Number of x-edges.
+    /// \param[in] ye Array of y-edge coordinates.
+    /// \param[in] n_ye Number of y-edges.
+    /// \param[in] ze Array of z-edge coordinates.
+    /// \param[in] n_ze Number of z-edges.
     CUDA_HOST_DEVICE
     grid3d(const R     xe[],
            const ijk_t n_xe,
@@ -128,9 +133,16 @@ public:
         this->calculate_bounding_box();
     }
 
-    /// Construct a rectlinear grid from array of x/y/z with their size
-    /// \param x,y,z  1D array of central points of voxels along x-axis
-    /// \param xn,yn,zn  size of 1D array for points.
+    /// \brief Constructs a uniform grid from min/max coordinates and dimensions.
+    /// \param[in] xe_min Minimum x-coordinate.
+    /// \param[in] xe_max Maximum x-coordinate.
+    /// \param[in] n_xe Number of x-edges.
+    /// \param[in] ye_min Minimum y-coordinate.
+    /// \param[in] ye_max Maximum y-coordinate.
+    /// \param[in] n_ye Number of y-edges.
+    /// \param[in] ze_min Minimum z-coordinate.
+    /// \param[in] ze_max Maximum z-coordinate.
+    /// \param[in] n_ze Number of z-edges.
     CUDA_HOST_DEVICE
     grid3d(const R     xe_min,
            const R     xe_max,
@@ -163,11 +175,8 @@ public:
         this->calculate_bounding_box();
     }
 
-    /// Constructor for oriented bounding boxess
-    /// Construct a rectlinear grid from array of x/y/z with their size and rotation angless
-    /// \param x,y,z  1D array of central points of voxels along x-axis
-    /// \param xn,yn,zn  size of 1D array for points.
-    /// \parmas angles rotation angle in degree for each axis.
+    /// \brief Constructs an oriented uniform grid.
+    /// \param[in] angles Rotation angles (in degrees) for each axis.
     CUDA_HOST_DEVICE
     grid3d(const R           xe_min,
            const R           xe_max,
@@ -198,9 +207,6 @@ public:
         for (ijk_t i = 0; i < n_ze; ++i)
             ze_[i] = ze_min + i * dz;
         this->calculate_bounding_box();
-        /// Define rotation matrix
-        /// The rotation matrix is to rotate the other objects
-        /// to have the same geometric position to the bouding box
 
         rotation_matrix_fwd.rotate(static_cast<R>(angles[0] * M_PI / 180.0),
                                    static_cast<R>(angles[1] * M_PI / 180.0),
@@ -208,11 +214,8 @@ public:
         rotation_matrix_inv = rotation_matrix_fwd.inverse();
     }
 
-    /// Constructor for oriented bounding boxess
-    /// Construct a rectlinear grid from array of x/y/z with their size and rotation angless
-    /// \param x,y,z  1D array of central points of voxels along x-axis
-    /// \param xn,yn,zn  size of 1D array for points.
-    /// \parmas angles rotation angle in degree for each axis.
+    /// \brief Constructs an oriented uniform grid with a rotation matrix.
+    /// \param[in] rxyz The 3x3 rotation matrix.
     CUDA_HOST_DEVICE
     grid3d(const R        xe_min,
            const R        xe_max,
@@ -243,16 +246,13 @@ public:
         for (ijk_t i = 0; i < n_ze; ++i)
             ze_[i] = ze_min + i * dz;
         this->calculate_bounding_box();
-        /// Define rotation matrix
-        /// The rotation matrix is to rotate the other objects
-        /// to have the same geometric position to the bouding box
+
         rotation_matrix_fwd = rxyz;
         rotation_matrix_inv = rotation_matrix_fwd.inverse();
     }
 
-    /// Construct a rectlinear grid from array of x/y/z with their size
-    /// \param x,y,z  1D array of central points of voxels along x-axis
-    /// \param xn,yn,zn  size of 1D array for points.
+    /// \brief Constructs an oriented grid from edge arrays and a rotation matrix.
+    /// \param[in] rxyz The 3x3 rotation matrix.
     CUDA_HOST_DEVICE
     grid3d(const R        xe[],
            const ijk_t    n_xe,
@@ -282,9 +282,8 @@ public:
         rotation_matrix_inv = rotation_matrix_fwd.inverse();
     }
 
-    /// Construct a rectlinear grid from array of x/y/z with their size
-    /// \param x,y,z  1D array of central points of voxels along x-axis
-    /// \param xn,yn,zn  size of 1D array for points.
+    /// \brief Constructs an oriented grid from edge arrays and rotation angles.
+    /// \param[in] angles Rotation angles (in degrees) for each axis.
     CUDA_HOST_DEVICE
     grid3d(const R           xe[],
            const ijk_t       n_xe,
@@ -316,12 +315,11 @@ public:
         rotation_matrix_inv = rotation_matrix_fwd.inverse();
     }
 
-    ///< Destructor releases dynamic allocation for x/y/z coordinates
+    /// \brief Destructor.
     CUDA_HOST_DEVICE
     ~grid3d() {}
 
-    /// set edge pointer
-    /// \return pointer of data
+    /// \brief Sets the grid edges from external arrays.
     CUDA_HOST_DEVICE
     virtual void
     set_edges(R* xe, ijk_t nx, R* ye, ijk_t ny, R* ze, ijk_t nz) {
@@ -334,48 +332,57 @@ public:
         this->calculate_bounding_box();
     }
 
+    /// \brief Gets the x-edge coordinates.
+    /// \return A pointer to the x-edge array.
     CUDA_HOST_DEVICE
     virtual R*
     get_x_edges() {
         return xe_;
     }
 
+    /// \brief Gets the y-edge coordinates.
+    /// \return A pointer to the y-edge array.
     CUDA_HOST_DEVICE
     virtual R*
     get_y_edges() {
         return ye_;
     }
 
+    /// \brief Gets the z-edge coordinates.
+    /// \return A pointer to the z-edge array.
     CUDA_HOST_DEVICE
     virtual R*
     get_z_edges() {
         return ze_;
     }
 
-    /// Returns number of bins box
+    /// \brief Gets the dimensions of the grid.
+    /// \return A `vec3` containing the number of voxels in x, y, and z.
     CUDA_HOST_DEVICE
     mqi::vec3<ijk_t>
     get_nxyz() {
         return dim_;
     }
 
-    /// Returns the data value for given x/y/z index
-    /// \param[in] p index, p[0], p[1], p[2] for x, y, z.
+    /// \brief Accesses the data value at a given 3D index.
+    /// \param[in] p A `vec3` containing the (i, j, k) index.
+    /// \return The data value at the specified index.
     CUDA_HOST_DEVICE
     virtual const T
     operator[](const mqi::vec3<ijk_t> p) {
         return data_[ijk2cnb(p.x, p.y, p.z)];
     }
 
-    /// Returns the data value for given x/y/z index
-    /// \param[in] p index, p[0], p[1], p[2] for x, y, z.
+    /// \brief Accesses the data value at a given 1D index (copy number).
+    /// \param[in] p The 1D index (copy number).
+    /// \return The data value at the specified index.
     CUDA_HOST_DEVICE
     virtual const T
     operator[](const mqi::cnb_t p) {
         return data_[p];
     }
 
-    /// Prints out x,y,z coordinate positions
+    /// \brief Prints the edge coordinates to the console for debugging.
     CUDA_HOST_DEVICE
     virtual void
     dump_edges() {
@@ -398,21 +405,29 @@ public:
         printf("\n");
     }
 
-    /// Converts index of x,y,z to index of valarray(data)
+    /// \brief Converts a 3D index (i,j,k) to a 1D copy number.
+    /// \param[in] i The x-index.
+    /// \param[in] j The y-index.
+    /// \param[in] k The z-index.
+    /// \return The 1D copy number.
     CUDA_HOST_DEVICE
     virtual inline cnb_t
     ijk2cnb(ijk_t i, ijk_t j, ijk_t k) {
         return k * dim_.x * dim_.y + j * dim_.x + i;
     }
 
-    /// Converts index of x,y,z to index of valarray(data)
+    /// \brief Converts a 3D index vector to a 1D copy number.
+    /// \param[in] idx A `vec3` containing the (i,j,k) index.
+    /// \return The 1D copy number.
     CUDA_HOST_DEVICE
     cnb_t
     ijk2cnb(vec3<ijk_t> idx) {
         return idx.z * dim_.x * dim_.y + idx.y * dim_.x + idx.x;
     }
 
-    /// Converts copy number to index of x,y,z
+    /// \brief Converts a 1D copy number to a 3D index (i,j,k).
+    /// \param[in] c The 1D copy number.
+    /// \return A `vec3` containing the (i,j,k) index.
     CUDA_HOST_DEVICE
     virtual inline vec3<ijk_t>
     cnb2ijk(cnb_t c) {
@@ -425,13 +440,16 @@ public:
         return ijk;
     }
 
+    /// \brief Deletes the data array if it has been allocated.
     CUDA_HOST_DEVICE
     void
     delete_data_if_used(void) {
         if (data_ != nullptr) delete[] data_;
     }
 
-    /// Initializes data, currently values are sum of index square for testing
+    /// \brief A virtual method to load data into the grid.
+    ///
+    /// This is intended to be overridden by derived classes.
     CUDA_HOST
     virtual void
     load_data() {
@@ -439,18 +457,17 @@ public:
         //data_ = new T[dim_.x * dim_.y * dim_.z];
     }
 
-    /// Reads data from other source,  currently values are sum of index square for testing
-    /// //total == dim_.x*dim_.y*dim_.z : not sure total is useful.
-    /// //will copy
-    /// in case src is CPU and dest GPU
+    /// \brief Sets the grid's data from an external source.
+    /// \param[in] src A pointer to the source data array.
     CUDA_HOST_DEVICE
     virtual void
     set_data(T* src) {
         this->delete_data_if_used();
-        data_ = src;   //can be change pointer but we will copy.
+        data_ = src;
     }
 
-    /// Fills data with a given value
+    /// \brief Fills the entire grid with a single value.
+    /// \param[in] a The value to fill the grid with.
     CUDA_HOST_DEVICE
     virtual void
     fill_data(T a) {
@@ -459,14 +476,17 @@ public:
             data_[i] = a;
     }
 
-    /// Returns data
-    /// \return pointer of data
+    /// \brief Gets a pointer to the grid's data array.
+    /// \return A pointer to the data.
     CUDA_HOST_DEVICE
     T*
     get_data() const {
         return data_;
     }
 
+    /// \brief Calculates the volume of a voxel at a given 1D index.
+    /// \param[in] p The 1D copy number of the voxel.
+    /// \return The volume of the voxel.
     CUDA_HOST_DEVICE
     R
     get_volume(const mqi::cnb_t p) {
@@ -477,6 +497,9 @@ public:
         return volume;
     }
 
+    /// \brief Calculates the volume of a voxel at a given 3D index.
+    /// \param[in] vox A `vec3` containing the (i,j,k) index of the voxel.
+    /// \return The volume of the voxel.
     CUDA_HOST_DEVICE
     R
     get_volume(const mqi::vec3<ijk_t> vox) {
@@ -485,8 +508,12 @@ public:
         volume *= ze_[vox.z + 1] - ze_[vox.z];
         return volume;
     }
-    ///< intersect. a ray from a voxel (ijk) in the grid
-    /// written by Hoyeon, plane equation based
+
+    /// \brief Calculates the intersection of a ray with the current voxel.
+    /// \param[in] p The starting point of the ray.
+    /// \param[in] d The direction vector of the ray.
+    /// \param[in] idx The index of the current voxel.
+    /// \return An `intersect_t` struct with the intersection details.
     CUDA_HOST_DEVICE
     intersect_t<R>
     intersect(mqi::vec3<R>& p, mqi::vec3<R>& d, mqi::vec3<ijk_t>& idx) {
@@ -625,9 +652,10 @@ public:
         return its;
     }
 
-    ///< intersect. a ray from outside to entering the grid
-    ///< return distance and side
-    /// Calculated distance become integer and distance smaller than 1 is ignored
+    /// \brief Calculates the intersection of a ray with the entire grid from outside.
+    /// \param[in] p The starting point of the ray.
+    /// \param[in] d The direction vector of the ray.
+    /// \return An `intersect_t` struct with the intersection details.
     CUDA_HOST_DEVICE
     intersect_t<R>
     intersect(mqi::vec3<R>& p, mqi::vec3<R>& d) {
@@ -742,6 +770,10 @@ public:
         return its;
     }   //< intersect : ray from outside
 
+    /// \brief Finds the 3D index of a voxel containing a given point.
+    /// \param[in] p The point to locate.
+    /// \param[in] dir The direction vector (used for boundary cases).
+    /// \return A `vec3` containing the (i,j,k) index.
     CUDA_HOST_DEVICE
     inline mqi::vec3<ijk_t>
     index(const mqi::vec3<R>& p, mqi::vec3<R>& dir)   // if p is on boundary
@@ -843,6 +875,10 @@ public:
         return idx;
     }
 
+    /// \brief Updates the voxel index after a particle crosses a boundary.
+    /// \param[in] vtx1 The new vertex position after the step.
+    /// \param[in] dir1 The direction vector.
+    /// \param[in,out] idx The 3D index to be updated.
     CUDA_HOST_DEVICE
     inline void
     index(mqi::vec3<R>& vtx1, mqi::vec3<R>& dir1, mqi::vec3<ijk_t>& idx) {
@@ -876,8 +912,9 @@ public:
         }
     }
 
-    ///< check the index is valid.
-    ///< this can be used to determine whether next index is out-of-grid
+    /// \brief Checks if a given 3D index is within the grid boundaries.
+    /// \param[in] c A `vec3` containing the (i,j,k) index to check.
+    /// \return True if the index is valid, false otherwise.
     CUDA_HOST_DEVICE
     inline bool
     is_valid(mqi::vec3<ijk_t>& c) {
