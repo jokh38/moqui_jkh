@@ -1,5 +1,15 @@
-#ifndef MQI_MATERIAL_HPP
-#define MQI_MATERIAL_HPP
+/// \file
+///
+/// \brief This file defines the base class for materials and specific material implementations, identical to mqi_material.hpp.
+///
+/// \warning This file is a duplicate of mqi_material.hpp and should be considered for refactoring to avoid code duplication.
+///
+/// The material_t class serves as a base for defining the physical properties of materials
+/// used in Monte Carlo simulations. It includes properties such as density, ionization potential,
+/// and radiation length. Derived classes for specific materials like water, air, and brass are also defined.
+
+#ifndef MQI_MATERIAL_CT_HPP
+#define MQI_MATERIAL_CT_HPP
 
 #include <moqui/base/mqi_common.hpp>
 #include <moqui/base/mqi_math.hpp>

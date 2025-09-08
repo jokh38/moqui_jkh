@@ -1,3 +1,11 @@
+/// \file
+///
+/// \brief This file defines the base class for materials and specific material implementations.
+///
+/// The material_t class serves as a base for defining the physical properties of materials
+/// used in Monte Carlo simulations. It includes properties such as density, ionization potential,
+/// and radiation length. Derived classes for specific materials like water, air, and brass are also defined.
+
 #ifndef MQI_MATERIAL_HPP
 #define MQI_MATERIAL_HPP
 
@@ -16,34 +24,44 @@
 namespace mqi
 {
 
+///< A type alias for material IDs.
 typedef uint16_t material_id;
-///< Interaction model (pure virtual class)
-///< interface between particle and material
-///< use template R for density type
-///<
+
+/// \class material_t
+/// \brief A base class representing a material in the simulation.
+/// \tparam R The floating-point type used for calculations (e.g., float or double).
+///
+/// This class provides an interface for the physical properties of a material,
+/// which are essential for modeling particle interactions. It includes methods for
+/// calculating mass density, stopping power ratio, and radiation length.
 template<typename R>
 class material_t
 {
 public:
-    physics_constants<R> units;   //TODO: better to be defined as global variable.
+    physics_constants<R> units;   ///< A struct holding physical constants and conversion factors.
 
-    R        two_pi_re2_mc2_nel;   //two_pi_re2_mc2_h2o * rho_mass
-    R        rho_mass;             //g/mm^3
-    R        rho_elec;             //electron density
-    R        Z;                    //Atomic number
-    R        weight;               //molecular weight (g)
-    R        electrons;            //number of electrons
-    R        Iev;                  //ionization potential
-    R        Iev_sq;               //Iev * Iev for stopping power calculation
-    R        X0;                   //Radiation length
-    uint16_t id;
+    R        two_pi_re2_mc2_nel;   ///< A pre-calculated term for stopping power calculation.
+    R        rho_mass;             ///< Mass density in g/mm^3.
+    R        rho_elec;             ///< Electron density in electrons/mm^3.
+    R        Z;                    ///< Effective atomic number.
+    R        weight;               ///< Molecular weight in g/mol.
+    R        electrons;            ///< Number of electrons per molecule.
+    R        Iev;                  ///< Mean excitation energy (ionization potential) in eV.
+    R        Iev_sq;               ///< Square of the mean excitation energy.
+    R        X0;                   ///< Radiation length in mm.
+    uint16_t id;                   ///< Material ID.
 public:
+    /// \brief Default constructor for the material_t class.
     CUDA_HOST_DEVICE
     material_t() { ; }
 
+    /// \brief Destructor for the material_t class.
     CUDA_HOST_DEVICE
     ~material_t() { ; }
 
+    /// \brief Assignment operator for the material_t class.
+    /// \param[in] r The material_t object to be assigned.
+    /// \return A reference to the assigned material_t object.
     CUDA_HOST_DEVICE
     material_t<R>&
     operator=(const material_t<R>& r) {
@@ -58,27 +76,35 @@ public:
         return *this;
     }
 
-    ///< variable density
+    /// \brief Calculates the mass density of the material, optionally scaled.
+    /// \param[in] scale A scaling factor for the density.
+    /// \return The scaled mass density in g/mm^3.
     CUDA_HOST_DEVICE
     inline virtual R
     mass_density(R scale = 1.0) const {
         return scale * rho_mass;
     }
 
+    /// \brief Returns a pre-calculated term for stopping power calculation.
+    /// \return The pre-calculated stopping power term.
     CUDA_HOST_DEVICE
     inline virtual R
     dedx_term0() const {
         return two_pi_re2_mc2_nel;
     }
 
+    /// \brief Returns the effective atomic number of the material.
+    /// \return The effective atomic number.
     CUDA_HOST_DEVICE
     inline virtual R
     atomic_number() const {
         return Z;
     }
 
-    ///< variable density
-    //    CUDA_HOST_DEVICE
+    /// \brief Calculates the stopping power ratio relative to water.
+    /// \param[in] Ek The kinetic energy of the particle in MeV.
+    /// \param[in] id An optional material ID.
+    /// \return The stopping power ratio.
     CUDA_DEVICE
     inline virtual R
     stopping_power_ratio(R Ek, int8_t id = -1) {
@@ -104,7 +130,8 @@ public:
         }
     }
 
-    ///< variable density
+    /// \brief Calculates the radiation length of the material.
+    /// \return The radiation length in mm.
     CUDA_HOST_DEVICE
     virtual R
     radiation_length() {
@@ -125,11 +152,14 @@ public:
     }
 };
 
-///< water_t
+/// \class h2o_t
+/// \brief A class representing water.
+/// \tparam R The floating-point type used for calculations.
 template<typename R>
 class h2o_t : public material_t<R>
 {
 public:
+    /// \brief Constructs a new h2o_t object with the properties of water.
     CUDA_HOST_DEVICE
     h2o_t() : material_t<R>() {
         this->rho_mass           = 1.0 / material_t<R>::units.cm3;          //0.001 mm^3
@@ -141,17 +171,21 @@ public:
         this->X0                 = 36.0863 * this->units.cm;
     }
 
+    /// \brief Destructor for the h2o_t class.
     CUDA_HOST_DEVICE
     ~h2o_t() {
         ;
     }
 };
 
-///< air_t
+/// \class air_t
+/// \brief A class representing air.
+/// \tparam R The floating-point type used for calculations.
 template<typename R>
 class air_t : public material_t<R>
 {
 public:
+    /// \brief Constructs a new air_t object with the properties of air.
     CUDA_HOST_DEVICE
     air_t() : material_t<R>() {
         ///< TODO: fill the values for air
@@ -164,17 +198,21 @@ public:
         this->X0 = (36.62 * this->units.cm) * this->rho_mass;   //36.0863/this->units.cm;
     }
 
+    /// \brief Destructor for the air_t class.
     CUDA_HOST_DEVICE
     ~air_t() {
         ;
     }
 };
 
-///< brass_t
+/// \class brass_t
+/// \brief A class representing brass.
+/// \tparam R The floating-point type used for calculations.
 template<typename R>
 class brass_t : public material_t<R>
 {
 public:
+    /// \brief Constructs a new brass_t object with the properties of brass.
     CUDA_HOST_DEVICE
     brass_t() : material_t<R>() {
         this->rho_mass           = 8.52 / material_t<R>::units.cm3;          //0.001 mm^3
@@ -186,6 +224,7 @@ public:
         this->X0                 = 36.0863 * this->units.cm;
     }
 
+    /// \brief Destructor for the brass_t class.
     CUDA_HOST_DEVICE
     ~brass_t() {
         ;

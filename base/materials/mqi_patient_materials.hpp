@@ -1,3 +1,11 @@
+/// \file
+///
+/// \brief This file defines the patient_material_t class for converting Hounsfield Units (HU) to material properties.
+///
+/// The patient_material_t class inherits from h2o_t and provides a mechanism
+/// to model patient tissues by converting CT Hounsfield Units into mass density.
+/// This allows for patient-specific material definitions in the simulation.
+
 #ifndef MQI_PATIENT_MATERIAL_HPP
 #define MQI_PATIENT_MATERIAL_HPP
 
@@ -9,35 +17,44 @@
 namespace mqi
 {
 
-///< Interaction model (pure virtual class)
-///< interface between particle and material
-///< template R and particle type
-///<
+/// \class patient_material_t
+/// \brief A class to represent patient-specific materials based on CT Hounsfield Units (HU).
+/// \tparam R The floating-point type used for calculations.
+///
+/// This class extends the h2o_t class to model patient tissues. It uses a
+/// piecewise-linear function to convert HU values from a CT scan into mass density,
+/// which is then used to determine the material properties for the simulation.
 template<typename R>
 class patient_material_t : public h2o_t<R>
 {
 
 public:
+    /// \brief Default constructor for the patient_material_t class.
     CUDA_HOST_DEVICE
     patient_material_t() : h2o_t<R>() {
         ;
     }
 
+    /// \brief Constructs a new patient_material_t object from a Hounsfield Unit (HU) value.
+    /// \param[in] hu The Hounsfield Unit value of the tissue.
     CUDA_HOST_DEVICE
     patient_material_t(int16_t hu) : h2o_t<R>() {
         this->rho_mass = hu_to_density(hu);
         this->X0       = radiation_length(this->rho_mass);
     }
 
+    /// \brief Destructor for the patient_material_t class.
     CUDA_HOST_DEVICE
     ~patient_material_t() {
         ;
     }
-    /// <calculate density based on HU value
-    /// param : HU (unitless)
-    /// return: density (g/mm^-3)
-    /// Based on Schneider conversion in TOPAS
-    /// W. Schneider, et al., Phys. Med. Biol., 1996 ?? Which Schneider, not sure.
+
+    /// \brief Converts a Hounsfield Unit (HU) value to mass density.
+    /// \param[in] hu The Hounsfield Unit value.
+    /// \return The corresponding mass density in g/mm^3.
+    ///
+    /// This method uses a piecewise-linear conversion curve based on the Schneider
+    /// conversion method to map HU values to mass densities.
     CUDA_HOST_DEVICE
     virtual R
     hu_to_density(int16_t hu) {

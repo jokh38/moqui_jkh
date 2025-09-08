@@ -14,26 +14,35 @@
 namespace mqi
 {
 
+/// \class phantom_env
+/// \brief Manages a simulation environment with a water phantom.
+/// \tparam R The floating-point type used for simulation (e.g., float or double).
+///
+/// This class extends x_environment to create a specific simulation setup
+/// involving a water phantom. It handles parsing of command-line arguments to
+/// configure the phantom's geometry, the properties of the particle beam,
+/// and the simulation parameters.
 template<typename R>
 class phantom_env : public x_environment<R>
 {
 public:
-    mqi::vec3<R>   lxyz;   ///< size of water phantom box
-    mqi::vec3<int> nxyz;   ///< number of voxels
-    mqi::vec3<R>   pos;    ///< water phantom position (center)
+    mqi::vec3<R>   lxyz;   ///< Size of the water phantom box in mm.
+    mqi::vec3<int> nxyz;   ///< Number of voxels in each dimension.
+    mqi::vec3<R>   pos;    ///< Center position of the water phantom.
 
-    std::array<R, 3> spot_position;
-    std::array<R, 2> spot_size;
-    std::array<R, 2> spot_energy;
-    std::array<R, 4> spot_angles;
-    size_t           n_histories = 0;   ///0.1M
-    bool             score_variance;
-    ///< material_list 0 -> air, 1->water
-    std::array<uint32_t, 2> threads;
-    int                     random_seed  = 0;
-    std::string             phantom_path = "";
+    std::array<R, 3> spot_position;   ///< Position of the beam spot {x, y, z}.
+    std::array<R, 2> spot_size;       ///< Size of the beam spot {sx, sy}.
+    std::array<R, 2> spot_energy;     ///< Energy of the beam spot {mean, std_dev}.
+    std::array<R, 4> spot_angles;     ///< Angles of the beam {collimator, gantry, couch, iec2dicom}.
+    size_t           n_histories;     ///< Number of particle histories to simulate.
+    bool             score_variance;  ///< Flag to indicate whether to score variance.
+    std::array<uint32_t, 2> threads;  ///< Number of threads and blocks for GPU execution.
+    int                     random_seed;    ///< Seed for the random number generator.
+    std::string             phantom_path;   ///< Path to the phantom data file.
 
 public:
+    /// \brief Constructs a new phantom_env object from command-line arguments.
+    /// \param[in] cli A command-line interface object containing the parsed arguments.
     CUDA_HOST
     phantom_env(mqi::cli& cli) : x_environment<R>() {
         if (cli["--gpu_id"].size() >= 1) {
@@ -181,11 +190,13 @@ public:
         this->beam_rng.seed(this->random_seed);
     }
 
+    /// \brief Destroys the phantom_env object.
     CUDA_HOST
     ~phantom_env() {
         ;
     }
 
+    /// \brief Prints the simulation parameters to the console.
     CUDA_HOST
     virtual void
     print_parameters() {
@@ -201,6 +212,7 @@ public:
         printf("Score variance %d\n", score_variance);
     }
 
+    /// \brief Sets up the materials for the simulation (e.g., air and water).
     CUDA_HOST
     virtual void
     setup_materials() {
@@ -216,6 +228,7 @@ public:
         //*/
     }
 
+    /// \brief Sets up the particle beam source based on the simulation parameters.
     CUDA_HOST
     virtual void
     setup_beamsource() {
@@ -246,6 +259,7 @@ public:
         }
     }
 
+    /// \brief Sets up the world geometry, including the water phantom.
     CUDA_HOST
     virtual void
     setup_world() {
@@ -320,10 +334,12 @@ public:
         mc::mc_score_variance = this->score_variance;
     }
 
+    /// \brief Sets up the scorers for data collection.
     CUDA_HOST
     virtual void
     setup_scorers() {}
 
+    /// \brief Runs the particle transport simulation.
     CUDA_HOST
     virtual void
     run() {
@@ -438,6 +454,7 @@ public:
         printf("Run done %f ms\n", duration.count());
     }
 
+    /// \brief Reshapes and prints the simulation results.
     CUDA_HOST
     void
     print_reshaped_results() {
