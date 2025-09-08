@@ -70,12 +70,23 @@ CUDA_CONSTANT const float cs_pp_e_g4_table[600] = {
     0.15656, 0.15663, 0.15663, 0.15663, 0.15669, 0.15669, 0.15676, 0.15676, 0.15676, 0.15683,
     0.15683, 0.15683, 0.15689, 0.15689, 0.15689, 0.15696, 0.15696, 0.15703, 0.15703, 0.15703
 };
-///< Proton-Proton elastic interaction
+/**
+ * @brief Represents the elastic interaction between two protons.
+ * @details This class calculates the cross-section for p-p elastic scattering using an analytical model.
+ * It serves as a base class for models that use tabulated data.
+ * @tparam R The floating-point type (e.g., float, double).
+ */
 template<typename R>
 class pp_elastic : public interaction<R, mqi::PROTON>
 {
 
 public:
+    /**
+     * @brief Calculates the macroscopic cross-section for p-p elastic scattering.
+     * @param rel A struct containing the relativistic quantities of the incident proton.
+     * @param mat A struct containing the properties of the target material (e.g., mass density).
+     * @return The macroscopic cross-section in cm^-1.
+     */
     CUDA_HOST_DEVICE
     virtual R
     cross_section(const relativistic_quantities<R>& rel, const material_t<R>& mat) {
@@ -88,8 +99,16 @@ public:
         return cs;
     }
 
-    ///< DoIt method to update track's KE, pos, dir, dE, status
-    ///< compute energy loss, vertex, secondaries
+    /**
+     * @brief A virtual function to handle actions during a simulation step.
+     * @details This function is a placeholder to be overridden by derived classes. It is intended to
+     * implement behaviors that occur as a particle is transported through a medium.
+     * @param trk The particle track being simulated.
+     * @param stk The stack to which secondary particles can be added.
+     * @param rng The random number generator.
+     * @param len The length of the current simulation step.
+     * @param mat The material through which the particle is passing.
+     */
     CUDA_HOST_DEVICE
     virtual void
     along_step(track_t<R>&       trk,
@@ -101,17 +120,30 @@ public:
     }
 };
 
-///< Proton-proton elastic interaction based on tabulated data
+/**
+ * @brief Represents p-p elastic interaction using tabulated cross-section data.
+ * @details This class extends `pp_elastic` to provide a more accurate cross-section calculation
+ * based on interpolated values from a data table. It includes a detailed `post_step` model
+ * to simulate the kinematics of the elastic collision.
+ * @tparam R The floating-point type (e.g., float, double).
+ */
 template<typename R>
 class pp_elastic_tabulated : public pp_elastic<R>
 {
 public:
-    const R* cs_table;
-    R        Ek_min = 0.5;
-    R        Ek_max = 300.0;
-    R        dEk    = 0.5;
+    const R* cs_table;  ///< Pointer to the tabulated cross-section data.
+    R        Ek_min;    ///< Minimum kinetic energy in the cross-section table.
+    R        Ek_max;    ///< Maximum kinetic energy in the cross-section table.
+    R        dEk;       ///< Energy step size in the cross-section table.
 
 public:
+    /**
+     * @brief Constructs a tabulated p-p elastic interaction object.
+     * @param m The minimum kinetic energy (Ek_min) in the table.
+     * @param M The maximum kinetic energy (Ek_max) in the table.
+     * @param s The energy step (dEk) in the table.
+     * @param p A pointer to the cross-section data table.
+     */
     CUDA_HOST_DEVICE
     pp_elastic_tabulated(R m, R M, R s, const R* p) : cs_table(p) {
         Ek_min = m;
@@ -119,13 +151,27 @@ public:
         dEk    = s;
     }
 
+    /**
+     * @brief Destructor. Nullifies the pointer to the cross-section table.
+     */
     CUDA_HOST_DEVICE
     ~pp_elastic_tabulated() {
         cs_table = nullptr;
     }
 
-    ///< DoIt method to update track's KE, pos, dir, dE, status
-    ///< compute energy loss, vertex, secondaries
+    /**
+     * @brief Simulates the interaction after a transport step.
+     * @details This method models the kinematics of a p-p elastic collision. It samples the energy
+     * transfer, calculates the scattering angles of both the incident and recoil protons based on
+     * relativistic kinematics, updates the primary track's state (energy and direction), and
+     * creates a new secondary track for the recoil proton.
+     * @param trk The primary particle track that underwent the interaction.
+     * @param stk The secondary particle stack where the recoil proton is pushed.
+     * @param rng The random number generator for sampling energy transfer.
+     * @param len The step length (not used in this model).
+     * @param mat The material in which the interaction occurred.
+     * @param score_local_deposit Flag indicating whether to score energy locally (not used).
+     */
     CUDA_HOST_DEVICE
     virtual void
     post_step(track_t<R>&       trk,
@@ -230,6 +276,12 @@ public:
         stk.push_secondary(daughter);
     }
 
+    /**
+     * @brief Calculates the macroscopic cross-section using linear interpolation on the tabulated data.
+     * @param rel A struct containing the relativistic quantities of the incident proton.
+     * @param mat A struct containing the properties of the target material.
+     * @return The interpolated macroscopic cross-section in cm^-1.
+     */
     CUDA_HOST_DEVICE
     virtual R
     cross_section(const relativistic_quantities<R>& rel, const material_t<R>& mat) {

@@ -19,59 +19,65 @@
 namespace mqi
 {
 
-/// \class rect3d
-/// \tparam T for grid values, e.g., dose, HU, vector
-/// \tparam R for grid coordinates, float, double, etc.
+/**
+ * @class rect3d
+ * @brief A template class for a 3D rectilinear grid.
+ * @details This class represents a 3D grid with non-uniform spacing along each axis. It is designed
+ * to store data such as CT Hounsfield Units, dose values, or deformation vector fields. It provides
+ * methods for construction, data access, trilinear interpolation, and geometric calculations.
+ * @tparam T The data type of the grid values (e.g., float for dose, mqi::vec3<float> for a vector field).
+ * @tparam R The data type for the grid coordinates (e.g., float, double).
+ */
 template<typename T, typename R>
 class rect3d
 {
 
 public:
-    /// Enumerate for a corner position
+    /**
+     * @enum cell_corner
+     * @brief Enumerates the 8 corners of a grid cell (voxel) for interpolation.
+     * The naming convention cXYZ indicates the corner's relative position, where 0 is the lower bound and 1 is the upper bound on each axis.
+     */
     typedef enum
     {
         //cXYZ, 0 is less, 1 is greater
-        c000 = 0,
-        c100,
-        c110,
-        c010,
-        c001,
-        c101,
-        c111,
-        c011,
-        cXXX
+        c000 = 0, ///< Corner at (x0, y0, z0)
+        c100,     ///< Corner at (x1, y0, z0)
+        c110,     ///< Corner at (x1, y1, z0)
+        c010,     ///< Corner at (x0, y1, z0)
+        c001,     ///< Corner at (x0, y0, z1)
+        c101,     ///< Corner at (x1, y0, z1)
+        c111,     ///< Corner at (x1, y1, z1)
+        c011,     ///< Corner at (x0, y1, z1)
+        cXXX      ///< Invalid or uninitialized corner
     } cell_corner;
 
 protected:
-    /// the center of pixel
-    R* x_;   ///< x axis values.
-    R* y_;   ///< y axis values.
-    R* z_;   ///< z axis values.
+    R* x_; ///< Ptr to an array of x-coordinates for the center of each voxel along the x-axis.
+    R* y_; ///< Ptr to an array of y-coordinates for the center of each voxel along the y-axis.
+    R* z_; ///< Ptr to an array of z-coordinates for the center of each voxel along the z-axis.
 
-    //To make navigation and interpolation problems simple, we assume Transport matrix
-    //X: 1, 0, 0 Y: 0, 1, 0 Z: 0, 0, 1
-    //or set one of following flag
+    /// Flag to indicate if an axis is flipped (i.e., coordinates are in descending order).
     bool flip_[3] = { false, false, false };
 
-    //Edge data is not neccessary for 4D interpolation but important for navigation
-    //R  x_edge[2]; /**< x boundary of entire rectlinear, e.g., x_edge[0] for x min, x_edge[1] for x max*/
-    //R  y_edge[2]; /**< y boundary of entire rectlinear, e.g., y_edge[0] for y min, y_edge[1] for y max*/
-    //R  z_edge[2]; /**< y boundary of entire rectlinear, e.g., z_edge[0] for z min, z_edge[1] for z max*/
+    mqi::vec3<ijk_t> dim_;   ///< The number of voxels in each dimension (dim_.x, dim_.y, dim_.z).
 
-    mqi::vec3<ijk_t> dim_;   ///< Number of voxels: dim_.x, dim_.y, dim_.z
-
-    std::valarray<T> data_;   ///< Data in this rectlinear
+    std::valarray<T> data_;   ///< A 1D array storing the flattened 3D grid data.
 
 public:
-    /// Default constructor only for child classes
-    ///cuda_host_device or cuda_host
+    /**
+     * @brief Default constructor. Intended for use by derived classes.
+     */
     rect3d() {
         ;
     }
 
-    /// Construct a rectlinear grid from vectors of x/y/z
-    /// \param x,y,z  1D vector of central points of voxels along x-axis
-    /// for example, -1,0,1 mean three voxels along x.
+    /**
+     * @brief Constructs a rectilinear grid from std::vector coordinates.
+     * @param x A vector of voxel center coordinates along the x-axis.
+     * @param y A vector of voxel center coordinates along the y-axis.
+     * @param z A vector of voxel center coordinates along the z-axis.
+     */
     CUDA_HOST_DEVICE
     rect3d(std::vector<R>& x, std::vector<R>& y, std::vector<R>& z) {
         x_ = new R[x.size()];
@@ -90,9 +96,15 @@ public:
         dim_.z = z.size();
     }
 
-    /// Construct a rectlinear grid from array of x/y/z with their size
-    /// \param x,y,z  1D array of central points of voxels along x-axis
-    /// \param xn,yn,zn  size of 1D array for points.
+    /**
+     * @brief Constructs a rectilinear grid from C-style array coordinates.
+     * @param x A C-style array of voxel center coordinates along the x-axis.
+     * @param xn The number of elements in the x array.
+     * @param y A C-style array of voxel center coordinates along the y-axis.
+     * @param yn The number of elements in the y array.
+     * @param z A C-style array of voxel center coordinates along the z-axis.
+     * @param zn The number of elements in the z array.
+     */
     CUDA_HOST_DEVICE
     rect3d(R x[], int xn, R y[], int yn, R z[], int zn) {
         x_ = new R[xn];
@@ -111,7 +123,10 @@ public:
         dim_.z = zn;
     }
 
-    /// Copy constructor
+    /**
+     * @brief Copy constructor.
+     * @param c The rect3d object to copy.
+     */
     CUDA_HOST_DEVICE
     rect3d(rect3d& c) {
         dim_ = c.dim_;
@@ -128,7 +143,9 @@ public:
             z_[i] = c.z_[i];
     }
 
-    /// Destructor releases dynamic allocation for x/y/z coordinates
+    /**
+     * @brief Destructor. Releases dynamically allocated memory for coordinate arrays.
+     */
     CUDA_HOST_DEVICE
     ~rect3d() {
         delete x_;
@@ -136,50 +153,69 @@ public:
         delete z_;
     }
 
-    /// Returns the interpolated value for given point, p. in std::array type
-    /// \param p is a std::array to represent a position, p[0], p[1], p[2] for x, y, z.
+    /**
+     * @brief Performs trilinear interpolation to find the value at a given point.
+     * @param p A std::array representing the 3D point {x, y, z}.
+     * @return The interpolated value of type T.
+     */
     virtual T
     operator()(const std::array<R, 3> p) {
         return operator()(mqi::vec3<R>(p[0], p[1], p[2]));
     }
 
-    /// Return the interpolated value for given point, x, y, z
-    /// \param x, y, z are for position
+    /**
+     * @brief Performs trilinear interpolation to find the value at a given point.
+     * @param x The x-coordinate of the point.
+     * @param y The y-coordinate of the point.
+     * @param z The z-coordinate of the point.
+     * @return The interpolated value of type T.
+     */
     virtual T
     operator()(const R x, const R y, const R z) {
         return operator()(mqi::vec3<R>(x, y, z));
     }
 
-    /// Returns data
-    /// \return data_
+    /**
+     * @brief Gets the underlying data storage.
+     * @return A const reference to the std::valarray containing the grid data.
+     */
     const std::valarray<T>&
     get_data() const {
         return data_;
     }
 
-    /// Returns x center positions
-    /// \return x_
+    /**
+     * @brief Gets the x-coordinates of the grid.
+     * @return A const pointer to the array of x-coordinates.
+     */
     const R*
     get_x() const {
         return x_;
     }
 
-    /// Returns y center positions
-    /// \return y_
+    /**
+     * @brief Gets the y-coordinates of the grid.
+     * @return A const pointer to the array of y-coordinates.
+     */
     const R*
     get_y() const {
         return y_;
     }
 
-    /// Returns z center positions
-    /// \return z_
+    /**
+     * @brief Gets the z-coordinates of the grid.
+     * @return A const pointer to the array of z-coordinates.
+     */
     const R*
     get_z() const {
         return z_;
     }
 
-    /// Returns the interpolated value for given point, x, y, z
-    /// \param pos is a type of mqi::vec3<R>.
+    /**
+     * @brief Performs trilinear interpolation to find the value at a given point.
+     * @param pos An mqi::vec3<R> representing the 3D point.
+     * @return The interpolated value of type T.
+     */
     virtual T
     operator()(const mqi::vec3<R>& pos) {
         std::array<size_t, 3>  c000_idx = this->find_c000_index(pos);
@@ -202,25 +238,33 @@ public:
         return c0 * (1.0 - zd) + c1 * zd;
     }
 
-    /// Returns the data value for given x/y/z index
-    /// \param p index, p[0], p[1], p[2] for x, y, z.
+    /**
+     * @brief Accesses the data value at a specific grid index.
+     * @param p A std::array of size_t representing the {i, j, k} index.
+     * @return The value at the specified index.
+     */
     virtual T
     operator[](const std::array<size_t, 3> p)   //&
     {
         return data_[ijk2data(p[0], p[1], p[2])];
     }
 
-    /// Returns the data value for given x/y/z index
-    /// \param[in] p index, p[0], p[1], p[2] for x, y, z.
+    /**
+     * @brief Accesses the data value at a specific grid index.
+     * @param p A std::array of int representing the {i, j, k} index.
+     * @return The value at the specified index.
+     */
     virtual T
     operator[](const std::array<int, 3> p)   //&
     {
         return data_[ijk2data(p[0], p[1], p[2])];
     }
 
-    /// Returns a total of 8 coner data of a cell
-    /// \param c000_idx an array of cell ids in x, y, and z.
-    /// \return coner values of a cell, C000, C001, C100, etc.
+    /**
+     * @brief Retrieves the data values at the 8 corners of a specified grid cell.
+     * @param c000_idx The {i, j, k} index of the cell's lower-left-front corner (c000).
+     * @return A std::array containing the 8 corner values.
+     */
     virtual std::array<T, 8>
     cell_data(const std::array<size_t, 3>& c000_idx) {
         size_t x0 = c000_idx[0];
@@ -238,9 +282,11 @@ public:
         return coner;
     }
 
-    /// Returns a total of 6 values of position
-    /// \param c000_idx an array of cell index (x, y, and z).
-    /// \return x0 and x1, y0 and y1, and z0 and z1.
+    /**
+     * @brief Retrieves the coordinates of the bounding box of a specified grid cell.
+     * @param c000_idx The {i, j, k} index of the cell's lower-left-front corner (c000).
+     * @return A std::array containing the {x0, x1, y0, y1, z0, z1} coordinates of the cell.
+     */
     virtual std::array<R, 6>
     cell_position(const std::array<size_t, 3>& c000_idx) {
 
@@ -259,9 +305,11 @@ public:
         return pts;
     }
 
-    /// Returns a coner index (x,y,z) where a given position is placed within (x+1,y+1,z+1)
-    /// \param pos cartesian coordinate of x, y, and z.
-    /// \return x,y,z indices of a cell
+    /**
+     * @brief Finds the index of the cell's lower-left-front corner (c000) containing a given point.
+     * @param pos The Cartesian coordinates {x, y, z} of the point.
+     * @return A std::array containing the {i, j, k} index of the cell.
+     */
     CUDA_HOST
     virtual std::array<size_t, 3>
     find_c000_index(const mqi::vec3<R>& pos) {
@@ -273,9 +321,11 @@ public:
         return c000_idx;
     }
 
-    /// Returns a coner index of x
-    /// \param pos cartesian coordinate of x
-    /// \return x index of a cell
+    /**
+     * @brief Finds the x-index of the cell containing a given x-coordinate.
+     * @param x The x-coordinate.
+     * @return The x-index (i) of the cell.
+     */
     CUDA_HOST
     inline virtual size_t
     find_c000_x_index(const R& x) {
@@ -286,9 +336,11 @@ public:
         return i - x_ - 1;
     }
 
-    /// Returns a coner index of y
-    /// \param pos cartesian coordinate of y
-    /// \return y index of a cell
+    /**
+     * @brief Finds the y-index of the cell containing a given y-coordinate.
+     * @param y The y-coordinate.
+     * @return The y-index (j) of the cell.
+     */
     CUDA_HOST
     inline virtual size_t
     find_c000_y_index(const R& y) {
@@ -296,18 +348,22 @@ public:
         return j - y_ - 1;
     }
 
-    /// Returns a coner index of z
-    /// \param pos cartesian coordinate of z
-    /// \return z index of a cell
+    /**
+     * @brief Finds the z-index of the cell containing a given z-coordinate.
+     * @param z The z-coordinate.
+     * @return The z-index (k) of the cell.
+     */
     inline virtual size_t
     find_c000_z_index(const R& z) {
         R* k = std::lower_bound(z_, z_ + dim_.z, z, std::less_equal<R>());
         return k - z_ - 1;
     }
 
-    /// Returns whether the point is in the grid or not
-    /// \param pos cartesian coordinate of x,y,z
-    /// \return true if the p is in grid or false
+    /**
+     * @brief Checks if a point is within the grid boundaries (exclusive of the upper boundary).
+     * @param p The point to check.
+     * @return `true` if the point is inside the grid, `false` otherwise.
+     */
     CUDA_HOST_DEVICE
     inline virtual bool
     is_in_point(const vec3<R>& p) {
@@ -321,9 +377,11 @@ public:
         return true;
     }
 
-    /// Returns whether the point is in the rect including edge or not
-    /// \param pos cartesian coordinate of x,y,z
-    /// \return true if the p is in grid or false
+    /**
+     * @brief Checks if a point is within the rectangle including the edge.
+     * @param p The point to check.
+     * @return Always returns true (implementation seems incomplete).
+     */
     CUDA_HOST_DEVICE
     inline virtual bool
     is_in_rect(const vec3<R>& p) {
@@ -331,9 +389,11 @@ public:
         return true;
     }
 
-    /// Returns the center position of a rect
-    /// \note more accurately, the center should be middle of edge
-    /// not middle of first and last point cause the thickness may be differents
+    /**
+     * @brief Calculates the center position of the grid.
+     * @note This is the center based on the first and last voxel coordinates, not the geometric center of the entire volume.
+     * @return An mqi::vec3<R> representing the center point.
+     */
     CUDA_HOST_DEVICE
     mqi::vec3<R>
     get_center() {
@@ -342,10 +402,11 @@ public:
                             0.5 * (z_[0] + z_[dim_.z - 1]));
     }
 
-    /// Returns size of box
-    /// note: distance between edges
-    /// the firt/last pixel thickness is assumed to be
-    /// a half of distance between first and second or last and before-last
+    /**
+     * @brief Calculates the total size of the grid volume.
+     * @note The size is calculated as the distance between the centers of the first and last voxels, plus half the spacing at each end.
+     * @return An mqi::vec3<R> representing the size (Lx, Ly, Lz).
+     */
     CUDA_HOST_DEVICE
     mqi::vec3<R>
     get_size() {
@@ -364,26 +425,38 @@ public:
         return mqi::vec3<R>(Lx, Ly, Lz);
     }
 
-    /// Returns number of bins box
+    /**
+     * @brief Gets the dimensions (number of voxels) of the grid.
+     * @return An mqi::vec3<ijk_t> with the number of voxels in x, y, and z.
+     */
     CUDA_HOST_DEVICE
     mqi::vec3<ijk_t>
     get_nxyz() {
         return dim_;
     }
 
+    /**
+     * @brief Sets the dimensions of the grid.
+     * @param dim An mqi::vec3<ijk_t> with the new dimensions.
+     */
     CUDA_HOST_DEVICE
     void
     set_nxyz(mqi::vec3<ijk_t> dim) {
         dim_ = dim;
     }
-    /// Returns position of the first corner cell
+    /**
+     * @brief Gets the origin of the grid (center of the first voxel).
+     * @return An mqi::vec3<R> representing the origin coordinates.
+     */
     CUDA_HOST_DEVICE
     mqi::vec3<R>
     get_origin() {
         return mqi::vec3<R>(x_[0], y_[0], z_[0]);
     }
 
-    /// Prints out x,y,z coordinate positions
+    /**
+     * @brief Prints the coordinate values for each axis to the console.
+     */
     CUDA_HOST
     virtual void
     dump_pts() {
@@ -406,14 +479,23 @@ public:
         std::cout << std::endl;
     }
 
-    /// Converts index of x,y,z to index of valarray(data)
+    /**
+     * @brief Converts a 3D grid index {i, j, k} to a 1D flat array index.
+     * @param i The x-index.
+     * @param j The y-index.
+     * @param k The z-index.
+     * @return The corresponding index in the 1D data array.
+     */
     CUDA_HOST_DEVICE
     virtual inline size_t
     ijk2data(size_t i, size_t j, size_t k) {
         return k * dim_.x * dim_.y + j * dim_.x + i;
     }
 
-    /// Writes data into file
+    /**
+     * @brief Writes the grid data to a binary file.
+     * @param filename The name of the file to write to.
+     */
     CUDA_HOST
     virtual void
     write_data(const std::string filename) {
@@ -422,7 +504,12 @@ public:
         file1.close();
     }
 
-    /// Writes data in any type of valarray to a file
+    /**
+     * @brief Writes a given std::valarray to a binary file.
+     * @tparam S The data type of the valarray.
+     * @param output The valarray to write.
+     * @param filename The name of the file to write to.
+     */
     template<class S>
     void
     write_data(std::valarray<S>& output, const std::string filename) {
@@ -455,28 +542,38 @@ public:
     }
     */
 
-    /// Initializes data, currently values are sum of index square for testing
+    /**
+     * @brief Allocates memory for the data array based on the grid dimensions.
+     */
     CUDA_HOST
     virtual void
     load_data() {
         data_.resize(dim_.x * dim_.y * dim_.z);
     }
 
-    /// Reads data from other source,  currently values are sum of index square for testing
-    /// //total == dim_.x*dim_.y*dim_.z
-    /// //will copy
-    /// in case src is CPU and dest GPU
+    /**
+     * @brief Reads data from a raw pointer into the grid's data array.
+     * @param src A pointer to the source data.
+     * @param total The total number of elements to copy.
+     */
     void
     read_data(T* src, size_t total) {
         data_(src, total);
     }
 
+    /**
+     * @brief Reads data from a std::valarray into the grid's data array.
+     * @param src The source std::valarray.
+     */
     void
     read_data(std::valarray<T> src) {
         data_ = src;
     }
 
-    /// Fills data with a given value
+    /**
+     * @brief Fills the entire grid with a specified value.
+     * @param a The value to fill the grid with.
+     */
     CUDA_HOST
     virtual void
     fill_data(T a) {
@@ -484,8 +581,10 @@ public:
         data_ = a;
     }
 
-    /// Checks data is flipped from x_, y_, z_ and flip the order of  coordinate
-    /// This method should be called after constructor gets called
+    /**
+     * @brief Checks if any coordinate axis is in descending order and reverses it if necessary.
+     * @details This ensures that the internal representation of coordinates is always ascending, which simplifies calculations.
+     */
     CUDA_HOST
     void
     flip_xyz_if_any(void) {
@@ -497,7 +596,10 @@ public:
         if (flip_[2]) std::reverse(z_, z_ + dim_.z);
     }
 
-    /// Flip data with a given value
+    /**
+     * @brief Flips the grid data to match the flipped coordinate axes.
+     * @details This should be called after `flip_xyz_if_any` to ensure data consistency.
+     */
     CUDA_HOST
     void
     flip_data(void) {
@@ -552,7 +654,16 @@ public:
                 T0                         fill_value);
 };
 
-/// R0 and R1 should be comparable
+/**
+ * @brief Clones the geometric structure (dimensions and coordinates) from a source grid to a destination grid.
+ * @details The data itself is not copied. This is useful for creating a new grid with the same geometry but different data.
+ * @tparam T0 Data type of the source grid.
+ * @tparam R0 Coordinate type of the source grid.
+ * @tparam T1 Data type of the destination grid.
+ * @tparam R1 Coordinate type of the destination grid.
+ * @param src The source rect3d object.
+ * @param dest The destination rect3d object.
+ */
 template<typename T0, typename R0, typename T1, typename R1>
 void
 clone_structure(rect3d<T0, R0>& src, rect3d<T1, R1>& dest) {
@@ -570,8 +681,18 @@ clone_structure(rect3d<T0, R0>& src, rect3d<T1, R1>& dest) {
         dest.z_[i] = src.z_[i];
 }
 
-/// Interpolates src and fill dest
-/// R0 and R1 should be comparable
+/**
+ * @brief Resamples a source grid onto the geometry of a destination grid using trilinear interpolation.
+ * @details For each voxel center in the destination grid, it finds the corresponding value in the source grid
+ * via interpolation. If a point is outside the source grid, a specified fill value is used.
+ * @tparam T0 Data type of the source grid.
+ * @tparam R0 Coordinate type of the source grid.
+ * @tparam T1 Data type of the destination grid.
+ * @tparam R1 Coordinate type of the destination grid.
+ * @param src The source grid to sample from.
+ * @param dest The destination grid to fill with interpolated values.
+ * @param fill_value The value to use for points outside the source grid.
+ */
 template<typename T0, typename R0, typename T1, typename R1>
 void
 interpolate(rect3d<T0, R0>& src, rect3d<T1, R1>& dest, T1& fill_value) {
@@ -602,7 +723,19 @@ interpolate(rect3d<T0, R0>& src, rect3d<T1, R1>& dest, T1& fill_value) {
     }           //z
 }
 
-/// Warping data in src using vector field
+/**
+ * @brief Warps a source grid to a destination grid's space using a deformation vector field (DVF).
+ * @details This function implements a "pull" or "backward" warping. For each voxel in the destination grid,
+ * it uses the DVF to find the corresponding point in the source grid's space and then interpolates the source
+ * data at that new point.
+ * @tparam T0 Data type of the source and destination grids.
+ * @tparam R0 Coordinate type of all grids.
+ * @tparam S0 Scalar type of the DVF vectors.
+ * @param src The source grid containing the data to be warped.
+ * @param dest The destination grid to be filled with the warped data.
+ * @param vf The deformation vector field, which maps points from the destination space to the source space.
+ * @param fill_value The value to use if the warped point falls outside the source grid.
+ */
 template<typename T0, typename R0, typename S0>
 void
 warp_linear(rect3d<T0, R0>&            src,

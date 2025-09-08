@@ -18,13 +18,22 @@
 
 namespace mqi
 {
+/**
+ * @namespace io
+ * @brief Provides functions for low-level input/output operations, specifically for creating NumPy NPZ files.
+ */
 namespace io
 {
-///<  save scorer data to a file in binary format
-///<  scr: scorer pointer
-///<  scale: data will be multiplied by
-///<  dir  : directory path. file name will be dir + scr->name + ".bin"
-///<  reshape: roi is used in scorer, original size will be defined.
+/**
+ * @brief Saves a std::string as a variable in a .npz file.
+ * @details This function manually constructs the necessary ZIP and NPY headers to save string data.
+ * It supports both writing to a new file ('w') and appending to an existing one ('a').
+ * @param filename The path to the output .npz file.
+ * @param var_name The name of the variable to be saved within the .npz archive.
+ * @param data The string data to save.
+ * @param shape The shape of the data (should be 1 for a single string).
+ * @param mode The file mode: "w" for write (creates a new file) or "a" for append (adds to an existing file).
+ */
 void
 save_npz(std::string filename,
          std::string var_name,
@@ -32,37 +41,69 @@ save_npz(std::string filename,
          size_t      shape,
          std::string mode);
 
+/**
+ * @brief Saves a C-style array as a variable in a .npz file.
+ * @details This function template manually constructs the necessary ZIP and NPY headers to save a numeric array.
+ * It supports both writing to a new file ('w') and appending to an existing one ('a').
+ * @tparam T The data type of the array elements.
+ * @param filename The path to the output .npz file.
+ * @param var_name The name of the variable to be saved within the .npz archive.
+ * @param data A pointer to the beginning of the data array.
+ * @param shape The number of elements in the array.
+ * @param mode The file mode: "w" for write (creates a new file) or "a" for append (adds to an existing file).
+ */
 template<typename T>
 void
 save_npz(std::string filename, std::string var_name, T* data, size_t shape, std::string mode);
 
+/**
+ * @brief Appends the bytes of a std::string to a character vector.
+ * @param vec The character vector to append to.
+ * @param str The string to append.
+ */
 void
 push_value(std::vector<char>& vec, const std::string str);
 
+/**
+ * @brief Appends the bytes of a uint16_t to a character vector.
+ * @param vec The character vector to append to.
+ * @param str The uint16_t value to append.
+ */
 void
 push_value(std::vector<char>& vec, const uint16_t str);
 
+/**
+ * @brief Appends the bytes of a uint32_t to a character vector.
+ * @param vec The character vector to append to.
+ * @param str The uint32_t value to append.
+ */
 void
 push_value(std::vector<char>& vec, const uint32_t str);
 
+/**
+ * @brief Parses the End of Central Directory Record (EOCD) of a ZIP file.
+ * @details This is used in append mode to find the location of the existing central directory,
+ * allowing new data to be appended correctly.
+ * @param filename The path to the ZIP (.npz) file.
+ * @param nrecs Output parameter for the number of records in the central directory.
+ * @param global_header_size Output parameter for the total size of the central directory.
+ * @param global_header_offset Output parameter for the starting offset of the central directory.
+ */
 void
 parse_zip_footer(std::string filename,
                  uint16_t&   nrecs,
                  size_t&     global_header_size,
                  size_t&     global_header_offset);
 
+/**
+ * @brief Maps a C++ typeid to a NumPy type character code.
+ * @param t The std::type_info of the C++ type.
+ * @return A character representing the NumPy data type (e.g., 'f' for float, 'i' for int).
+ */
 char
 map_type(const std::type_info& t);
 }   // namespace io
 }   // namespace mqi
-
-///< Function to write array into file
-///< src: array and this array is copied
-///<
-
-///< Function to write key values into file
-///< src: array and this array is copied
-///<
 
 void
 mqi::io::push_value(std::vector<char>& vec, const std::string str) {
