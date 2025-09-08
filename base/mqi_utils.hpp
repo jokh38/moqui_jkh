@@ -17,30 +17,40 @@
 namespace mqi
 {
 
-///< Remove white-space on right
+/// @brief Removes trailing whitespace from a string.
+/// @param s The input string.
+/// @param delimiters A string containing the characters to trim.
+/// @return A new string with trailing delimiters removed.
 inline std::string
 trim_right_copy(const std::string& s, const std::string& delimiters = " \f\n\r\t\v\0\\") {
     return s.substr(0, s.find_last_not_of(delimiters) + 1);
 }
 
-///< Remove white-space on left
+/// @brief Removes leading whitespace from a string.
+/// @param s The input string.
+/// @param delimiters A string containing the characters to trim.
+/// @return A new string with leading delimiters removed.
 inline std::string
 trim_left_copy(const std::string& s, const std::string& delimiters = " \f\n\r\t\v\0\\") {
     return s.substr(s.find_first_not_of(delimiters));
 }
 
-///< Remove white-space on left and right
+/// @brief Removes leading and trailing whitespace from a string.
+/// @param s The input string.
+/// @param delimiters A string containing the characters to trim.
+/// @return A new string with leading and trailing delimiters removed.
 inline std::string
 trim_copy(const std::string& s, const std::string& delimiters = " \f\n\r\t\v\0\\") {
     return trim_left_copy(trim_right_copy(s, delimiters), delimiters);
 }
 
-/// Interpolates values in map
-/// \tparam T is type of values
-/// \tparam S is size of columns
-/// \param db map of dataset
-/// \param x position value where interpolated value is calculated at
-/// \param y_col column index of map for y-values to be used for interpolation
+/// @brief Performs linear interpolation on data stored in a map.
+/// @tparam T The data type of the values.
+/// @tparam S The size of the value arrays in the map.
+/// @param db A map where the key is the x-coordinate and the value is an array of y-coordinates.
+/// @param x The x-value at which to interpolate.
+/// @param y_col The column index of the y-value to use for interpolation.
+/// @return The interpolated y-value.
 template<typename T, size_t S>
 inline T
 interp_linear(const std::map<T, std::array<T, S>>& db, const T x, const size_t y_col = 0) {
@@ -55,13 +65,14 @@ interp_linear(const std::map<T, std::array<T, S>>& db, const T x, const size_t y
     return y0 + (x - x0) * (y1 - y0) / (x1 - x0);
 }
 
-/// Interpolates values in vector
-/// \tparam T is type of values
-/// \tparam S is size of columns
-/// \param db is vector for dataset
-/// \param x position value where interpolated value is calculated at
-/// \param x_col column index of map for x-values to be used for interpolation
-/// \param y_col column index of map for y-values to be used for interpolation
+/// @brief Performs linear interpolation on tabular data stored in a vector of arrays.
+/// @tparam T The data type of the values.
+/// @tparam S The size of the column arrays.
+/// @param db A vector of arrays representing the data table.
+/// @param x The x-value at which to interpolate.
+/// @param x_col The column index for the x-values.
+/// @param y_col The column index for the y-values.
+/// @return The interpolated y-value.
 template<typename T, size_t S>
 inline T
 interp_linear(const std::vector<std::array<T, S>>& db,
@@ -84,14 +95,14 @@ interp_linear(const std::vector<std::array<T, S>>& db,
     return db[db.size() - 1][y_col];
 }
 
-/// Interpolate table lambda function
-/// \param vector_X The array of x coordinates
-/// \param vector_Y The array of y coordinates
-/// \param x the ordinate to evaluate
-/// \param npoints the number of coordinates in the table
-/// \param order the interpolation polynom order
-/// \return the y value corresponding to the x ordinate
-/// \note from gpmc code
+/// @brief Performs polynomial interpolation on a table of x-y coordinates.
+/// @param vector_X An array of x-coordinates.
+/// @param vector_Y An array of y-coordinates.
+/// @param x The x-ordinate at which to evaluate the interpolation.
+/// @param npoints The number of points in the coordinate tables.
+/// @param order The order of the interpolation polynomial.
+/// @return The interpolated y-value corresponding to the x-ordinate.
+/// @note Adapted from gpmc code.
 inline float
 TableInterpolation(float* const vector_X,
                    float* const vector_Y,
@@ -130,9 +141,14 @@ TableInterpolation(float* const vector_X,
     return result;
 }
 
-///< This will return start & range of jobs for given thread-id of N-threads.
-///< For example, if we have 11 histories and two threads to process,
-///< this function will return 0,6 for thread-0 and 6,5 for thread-1.
+/// @brief Calculates the starting index and number of jobs for a specific thread.
+///
+/// This function distributes a total number of jobs among a set of threads as evenly as possible.
+/// For example, with 11 jobs and 2 threads, thread 0 gets jobs 0-5 (6 jobs) and thread 1 gets jobs 6-10 (5 jobs).
+/// @param n_threads The total number of threads.
+/// @param n_jobs The total number of jobs to distribute.
+/// @param thread_id The ID of the current thread.
+/// @return A `vec2<uint32_t>` where `x` is the starting job index and `y` is the number of jobs for this thread.
 CUDA_DEVICE
 vec2<uint32_t>
 start_and_length(const uint32_t& n_threads, const uint32_t& n_jobs, const uint32_t& thread_id) {
@@ -146,8 +162,13 @@ start_and_length(const uint32_t& n_threads, const uint32_t& n_jobs, const uint32
     return ret;
 }
 
-///< this is equivalent to std::lower_bound
-///< "arr" is assumed to be sorted
+/// @brief A custom implementation of `std::lower_bound` for sorted arrays.
+///
+/// This function can be compiled for both host and device code.
+/// @param arr A pointer to the sorted array.
+/// @param len The length of the array.
+/// @param value The value to find the lower bound for.
+/// @return The index of the first element not less than `value`.
 CUDA_HOST_DEVICE
 int32_t
 lower_bound_cpp(const int32_t* arr, const int32_t& len, const int32_t& value) {

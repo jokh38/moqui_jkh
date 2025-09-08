@@ -12,41 +12,63 @@
 
 namespace mqi{
 
-//namespace smc{
+/// @class gtr2_material_t
+/// @brief A material definition class specific to the GTR2 machine.
+///
+/// This class inherits from `patient_material_t` and is intended for use with the `gtr2`
+/// treatment machine model. Custom material properties are not implemented in this version.
+///
+/// @tparam R The floating-point type for material properties (e.g., `float` or `double`).
 template<typename R>
 class gtr2_material_t: public patient_material_t<R> {
 public:
-    // Customize material not implemented
+    /// @brief Default constructor.
     CUDA_HOST_DEVICE
     gtr2_material_t(): patient_material_t<R>(){;}
 
+    /// @brief Constructor initializing the material from a Hounsfield Unit value.
+    /// @param hu The Hounsfield Unit (HU) value.
     CUDA_HOST_DEVICE
     gtr2_material_t(int16_t hu): patient_material_t<R>(hu){;}
 
+    /// @brief Default destructor.
     CUDA_HOST_DEVICE
     ~gtr2_material_t(){;}
 };
-/**
- * The <code>gtr2</code> class represents beam model for Sumitomo IMPT machine in SMC
- */
+
+/// @class gtr2
+/// @brief Represents the beam model for the Sumitomo IMPT machine (Gantry 2) at Samsung Medical Center (SMC).
+///
+/// This class provides a specific implementation of `treatment_machine_ion` for the GTR2 machine,
+/// primarily based on log file data. It uses spline interpolation to model various energy-dependent
+/// beam properties like spot size, angular spread, and particle count calibration.
+///
+/// @tparam T The floating-point type for phase-space variables (e.g., `float` or `double`).
 template <typename T>
 class gtr2 : public treatment_machine_ion<T> {
 protected:
 
 public:
 
-    // MU count to paticles in MC
+    ///< Spline for interpolating particle count from dose.
     tk::spline protonPerDoseInterp;
+    ///< Spline for interpolating dose from MU count.
     tk::spline dosePerMUCountInterp;
 
-    // Basic beam property
+    ///< Spline for interpolating beam energy spread.
     tk::spline beamEnergySpreadInterp;
+    ///< Spline for interpolating beam spot size.
     tk::spline beamSpotSizeInterp;
+    ///< Spline for interpolating beam angular spread.
     tk::spline beamAngularSpreadInterp;
+    ///< Spline for interpolating beam divergence.
     tk::spline beamDivergenceInterp;
 
-    // Samsung Medical Center focal length value in Raystation
-    // Added in 2023-08 by Chanil Jeon
+    /// @brief Default constructor.
+    ///
+    /// Initializes the GTR2 machine model by setting the Source-to-Axis Distance (SAD) and
+    /// configuring the spline interpolations for various beam characteristics based on
+    /// machine-specific calibration data.
     gtr2()
     {
         treatment_machine_ion<T>::SAD_[0] = 2597.0 ;
@@ -89,16 +111,24 @@ public:
         beamDivergenceInterp.make_monotonic();
     }
 
+    /// @brief Default destructor.
     ~gtr2(){;}
 
-    /// User method to characterize MODULATED beamlet based on spot information from DICOM.
+    /// @brief Characterizes a beamlet from DICOM spot information.
+    /// @param s A `spot` object from the DICOM data.
+    /// @return A default-constructed `mqi::beamlet<T>` object.
+    /// @note This function is not implemented for the GTR2 log file-based workflow.
     virtual mqi::beamlet<T>
     characterize_beamlet(const mqi::beam_module_ion::spot& s) 
     {
         return mqi::beamlet<T>();
     }
 
-    /// User method to characterize MODULATED beamlet based on spot information ans source to isocenter distnace from DICOM.
+    /// @brief Characterizes a beamlet from DICOM spot information with a specified source-to-isocenter distance.
+    /// @param s A `spot` object from the DICOM data.
+    /// @param source_to_isocenter_mm The distance from the source to the isocenter in mm.
+    /// @return A default-constructed `mqi::beamlet<T>` object.
+    /// @note This function is not implemented for the GTR2 log file-based workflow.
     virtual mqi::beamlet<T>
     characterize_beamlet(const mqi::beam_module_ion::spot& s,
                          const float                       source_to_isocenter_mm)
@@ -106,7 +136,11 @@ public:
         return mqi::beamlet<T>();
     }
 
-    /// User method to characterize UNIFORM/MODULATED_SPEC beamlet based on spot information from DICOM.
+    /// @brief Characterizes a beamlet from two DICOM spots.
+    /// @param s0 The starting spot.
+    /// @param s1 The ending spot.
+    /// @return A default-constructed `mqi::beamlet<T>` object.
+    /// @note This function is not implemented for the GTR2 log file-based workflow.
     virtual mqi::beamlet<T>
     characterize_beamlet(const mqi::beam_module_ion::spot& s0,
                          const mqi::beam_module_ion::spot& s1)
@@ -114,20 +148,28 @@ public:
         return mqi::beamlet<T>();
     }
 
-    // Log file MU count to particle count conversion formula used in TOPAS MC
-    // Particle count in MC = MU Count * (Dose / MU Count) * (Particle / dose) * (Dose monitor range--> implemented in pre-program) 
+    /// @brief Calculates the number of histories for a spot based on log file data.
+    ///
+    /// This method converts the Monitor Units (MU) from the log file into the number of primary particles
+    /// for the simulation, using an energy-dependent calibration curve.
+    /// @param s The `logspot` object containing the MU count and energy.
+    /// @return The number of particles (histories) to simulate for this spot.
     size_t
     characterize_history(
         const mqi::beam_module_ion::logspot& s)
     {
-        /* SMC Log file version */
-        int particleFromMUCount = s.muCount * protonPerDoseInterp(s.e) * dosePerMUCountInterp(s.e); //* scaleFactorCorrectionInterp(s.e);
+        int particleFromMUCount = s.muCount * protonPerDoseInterp(s.e) * dosePerMUCountInterp(s.e);
         return particleFromMUCount;
     }
 
-    // Characterize beamlet information using log file information
-    // Using mqi::beam_module_ion::logspot, with an added feature in mqi_beam_module_ion
-    // Added by Chanil Jeon
+    /// @brief Characterizes a beamlet from log file spot information.
+    ///
+    /// This method uses the energy-calibrated splines to define the beamlet's energy distribution,
+    /// spot size, angular spread, and divergence based on the spot data from the machine log file.
+    /// @param s A `logspot` object containing the spot's energy, position, and MU count.
+    /// @param source_to_isocenter_mm The distance from the source to the isocenter in mm.
+    /// @param rsuse A boolean indicating whether a range shifter is used.
+    /// @return A `mqi::beamlet<T>` object representing the characterized spot.
     mqi::beamlet<T>
     characterize_beamlet(const mqi::beam_module_ion::logspot& s,
         const float                       source_to_isocenter_mm,
@@ -138,7 +180,6 @@ public:
         if (rsuse) newBeamStartingPos = newBeamStartingPos - 40;
 
         // Spot beam's energy
-        // Constant energy 
         double energySpread = this->beamEnergySpreadInterp(s.e);
 
         // Gaussian energy spread distribution
@@ -172,6 +213,10 @@ public:
         return mqi::beamlet<T>(energy, beamlet);
     }
 
+    /// @brief Characterizes the range shifter based on DICOM data.
+    /// @param ds Pointer to the dataset for one item of an `IonBeamSequence`.
+    /// @param m The modality type.
+    /// @return A pointer to a `mqi::rangeshifter` object.
     mqi::rangeshifter*
     characterize_rangeshifter(
         const mqi::dataset* ds,
@@ -180,7 +225,6 @@ public:
         auto seq_tags = &mqi::seqtags_per_modality.at(m);
 
         //1. rangeshifter sequence
-        //For MDACC, this sequence doesn't have much information.
         auto  rs_ds = (*ds)( seq_tags->at("rs")) ;
         assert(rs_ds.size() >=1);
 
@@ -202,7 +246,6 @@ public:
             std::cout<< "RangeShifterID detected.. : " << rs_id[0] << std::endl;
             rs_id[0].erase(std::remove(rs_id[0].begin(), rs_id[0].end(), ' '), rs_id[0].end()); // Erase blank
 
-            /* Changed, because G2 rangeshifter is fixed to name of SNOUT_DEG_B  */
             if (rs_id[0] == "SNOUT_DEG_B") lxyz.z = 39.37;
             else lxyz.z = 0.0;
             assert(lxyz.z > 0);
@@ -215,6 +258,10 @@ public:
         return new mqi::rangeshifter(lxyz, pxyz, rxyz);
     }
 
+    /// @brief Characterizes the aperture based on DICOM data.
+    /// @param ds Pointer to the dataset for one item of an `IonBeamSequence`.
+    /// @param m The modality type.
+    /// @return A pointer to a `mqi::aperture` object.
     mqi::aperture*
     characterize_aperture(
         const mqi::dataset* ds,
@@ -247,8 +294,16 @@ public:
         return new mqi::aperture(xypts, lxyz, pxyz, rxyz);
     }
 
-    // Returns beamsource model from csv file having log file information
-    // Log file based implementation for Samsung Medical Center by Chanil Jeon
+    /// @brief Creates a beam source model from log file data.
+    ///
+    /// This implementation is specific to the Samsung Medical Center's log file format. It iterates
+    /// through the parsed log file data, characterizes each spot, and appends the resulting
+    /// beamlets to the beam source.
+    /// @param logfileData A struct containing data parsed from the log files.
+    /// @param pcoord The coordinate system of the beam geometry.
+    /// @param source_to_isocenter_mm The distance from the source to the isocenter in mm.
+    /// @param rsuse A boolean indicating whether a range shifter is used.
+    /// @return A `mqi::beamsource<T>` object for the simulation.
     mqi::beamsource<T>
     create_beamsource(const mqi::logfiles_t& logfileData,
                       const mqi::coordinate_transform<T> pcoord,

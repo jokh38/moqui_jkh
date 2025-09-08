@@ -8,6 +8,10 @@ Moqui C++ is a powerful and flexible toolkit for performing Monte Carlo simulati
 
 This project provides the low-level components for building complex simulations, including models for beamlines, apertures, and patient geometries. It is designed to be used as a library in other applications or through its own command-line interface for running simulations.
 
+## Project Status
+
+**This project is under active development.** While the core components are functional, some features are still being implemented, and the API may evolve. The testing suite is also under construction. Contributions are welcome!
+
 ## Features
 
 -   **High-performance Monte Carlo engine:** Optimized for speed with support for GPU acceleration using CUDA.
@@ -64,6 +68,53 @@ The project can be used as a library in your own C++ applications or through the
 ### As a Library
 
 To use Moqui C++ as a library, you can include the necessary headers from the `base/` and other directories in your source files and link against the compiled library generated during the build process. The main entry point for simulations is typically through the `mqi::treatment_session` class.
+
+Here is a basic example of how to use the library to load a treatment plan and access beam information:
+
+```cpp
+#include <iostream>
+#include <moqui/base/mqi_treatment_session.hpp>
+
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <path_to_dicom_file>" << std::endl;
+        return 1;
+    }
+
+    try {
+        // Create a treatment session from a DICOM file
+        mqi::treatment_session<float> session(argv[1]);
+
+        // Get the number of beams in the plan
+        int num_beams = session.get_num_beams();
+        std::cout << "Number of beams: " << num_beams << std::endl;
+
+        // Get the names of the beams
+        std::vector<std::string> beam_names = session.get_beam_names();
+        for (const auto& name : beam_names) {
+            std::cout << "Beam name: " << name << std::endl;
+
+            // Get the beamline for the current beam
+            mqi::beamline<float> beamline = session.get_beamline(name);
+
+            // Get the coordinate system for the current beam
+            mqi::coordinate_transform<float> coord = session.get_coordinate(name);
+
+            // Get the beam source for the current beam
+            // Note: scale and sid (source-to-isocenter distance) are example values
+            float scale = 1000.0;
+            float sid = 465.0;
+            mqi::beamsource<float> source = session.get_beamsource(name, coord, scale, sid);
+        }
+
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
+
+    return 0;
+}
+```
 
 ### Command-Line Interface
 
@@ -144,9 +195,16 @@ The repository is organized into the following main directories:
     -   `materials/`: Classes for material definitions and handling material properties.
     -   `scorers/`: Classes for scoring physical quantities like dose, LET, and track length.
 -   `kernel_functions/`: Contains CUDA kernels and other GPU-specific code for high-performance computations, such as particle transport.
--   `treatment_machines/`: Contains definitions for specific radiotherapy treatment machine models, including their geometric components.
+-   `treatment_machines/`: Contains definitions for specific radiotherapy treatment machine models, including their geometric components. This directory includes both generic models (like `mqi_treatment_machine_pbs.hpp`) and machine-specific implementations (like `mqi_treatment_machine_smc_gtr1.hpp`).
 
 A detailed breakdown of the file structure can be found in `code_structure.md`.
+
+## Code Style and Documentation
+
+To maintain consistency throughout the codebase, please adhere to the following guidelines:
+
+-   **Documentation:** All public classes, methods, and functions should be documented using Doxygen-style comments. This helps in automatically generating comprehensive documentation for the API.
+-   **Formatting:** Follow the existing code formatting style. While a strict style guide is not yet enforced, aim for clarity and consistency with the surrounding code.
 
 ## Contributing
 
