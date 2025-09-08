@@ -9,24 +9,75 @@ namespace mc
 {
 #if defined(__CUDACC__)
 
+/*!
+ * @brief Uploads a node and its hierarchy from CPU to GPU.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param c_node Pointer to the source node on the CPU.
+ * @param g_node Reference to the pointer for the destination node on the GPU.
+*/
 template<typename R>
 void
 upload_node(mqi::node_t<R>* c_node, mqi::node_t<R>*& g_node);
+
+/*!
+ * @brief Uploads material data from CPU to GPU.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param c_materials Pointer to the source material data on the CPU.
+ * @param g_materials Reference to the pointer for the destination material data on the GPU.
+ * @param n_materials The number of materials to upload.
+*/
 template<typename R>
 void
 upload_materials(mqi::material_t<R>*  c_materials,
                  mqi::material_t<R>*& g_materials,
                  uint16_t             n_materials);
+
+/*!
+ * @brief Uploads vertex data from CPU to GPU.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param src Pointer to the source vertex data on the CPU.
+ * @param dest Reference to the pointer for the destination vertex data on the GPU.
+ * @param h0 The starting index of the vertices to upload.
+ * @param h1 The ending index of the vertices to upload.
+*/
 template<typename R>
 void
 upload_vertices(mqi::vertex_t<R>* src, mqi::vertex_t<R>*& dest, size_t h0, size_t h1);
+
+/*!
+ * @brief Uploads CT data from CPU to GPU.
+ * @param c_ct Pointer to the source CT data on the CPU.
+ * @param g_ct Reference to the pointer for the destination CT data on the GPU.
+ * @param size_ The number of CT voxels to upload.
+*/
 void
 upload_ct(int16_t* c_ct, int16_t*& g_ct, uint32_t size_);
+
+/*!
+ * @brief Uploads density data (float) from CPU to GPU.
+ * @param c_density Pointer to the source density data on the CPU.
+ * @param g_density Reference to the pointer for the destination density data on the GPU.
+ * @param size_ The number of density voxels to upload.
+*/
 void
 upload_density(float* c_density, float*& g_density, uint32_t size_);
+
+/*!
+ * @brief Uploads density data (__half) from CPU to GPU.
+ * @param c_density Pointer to the source density data on the CPU.
+ * @param g_density Reference to the pointer for the destination density data on the GPU.
+ * @param size_ The number of density voxels to upload.
+*/
 void
 upload_density(__half* c_density, __half*& g_density, uint32_t size_);
 
+/*!
+ * @brief Uploads scorer index data from CPU to GPU.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param c_scorer_idx Pointer to the source scorer index data on the CPU.
+ * @param g_scorer_idx Reference to the pointer for the destination scorer index data on the GPU.
+ * @param n_scorer_idx The number of scorer indices to upload.
+*/
 template<typename R>
 void
 upload_scorer_idx(int32_t* c_scorer_idx, int32_t*& g_scorer_idx, uint32_t n_scorer_idx) {
@@ -34,6 +85,12 @@ upload_scorer_idx(int32_t* c_scorer_idx, int32_t*& g_scorer_idx, uint32_t n_scor
     gpu_err_chk(cudaMemcpy(
       g_scorer_idx, c_scorer_idx, n_scorer_idx * sizeof(int32_t), cudaMemcpyHostToDevice));
 }
+
+/*!
+ * @brief CUDA kernel to print beam source data for debugging.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param beamsource Pointer to the beam source object on the GPU.
+*/
 template<typename R>
 CUDA_GLOBAL void
 print_vertex(mqi::beamsource<R>* beamsource) {
@@ -43,6 +100,14 @@ print_vertex(mqi::beamsource<R>* beamsource) {
     printf("beamsizes %d\n", beamsource->beamlet_size_);
 }
 
+/*!
+ * @brief CUDA kernel to add beamlet data to a beam source on the GPU.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param beamsource Pointer to the beam source object on the GPU.
+ * @param cdf Pointer to the CDF array for beamlet sampling.
+ * @param beamlet Pointer to the beamlet index array.
+ * @param beamlet_size The number of beamlets.
+*/
 template<typename R>
 CUDA_GLOBAL void
 add_beamlet(mqi::beamsource<R>* beamsource, size_t* cdf, size_t* beamlet, size_t beamlet_size) {
@@ -53,6 +118,13 @@ add_beamlet(mqi::beamsource<R>* beamsource, size_t* cdf, size_t* beamlet, size_t
     //        printf("gpu %d %lu %lu\n", i, cdf[i], beamlet[i]);
     //    }
 }
+
+/*!
+ * @brief Uploads a beam source object from CPU to GPU.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param src The source beam source object on the CPU.
+ * @param dest Reference to the pointer for the destination beam source object on the GPU.
+*/
 template<typename R>
 void
 upload_beamsource(mqi::beamsource<R> src, mqi::beamsource<R>*& dest) {
@@ -72,6 +144,24 @@ upload_beamsource(mqi::beamsource<R> src, mqi::beamsource<R>*& dest) {
     //        printf("cdf cpu %d %d %d\n", i, src.array_cdf_[i], src.array_beamlet_[i]);
     //    }
 }
+
+/*!
+ * @brief CUDA kernel to add geometry data to a node on the GPU.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param node Pointer to the node on the GPU.
+ * @param xe Pointer to the x-edges of the geometry.
+ * @param nxe The number of x-edges.
+ * @param ye Pointer to the y-edges of the geometry.
+ * @param nye The number of y-edges.
+ * @param ze Pointer to the z-edges of the geometry.
+ * @param nze The number of z-edges.
+ * @param data Pointer to the density data.
+ * @param rotation_matrix_inv Pointer to the inverse rotation matrix.
+ * @param rotation_matrix_fwd Pointer to the forward rotation matrix.
+ * @param translation_vector Pointer to the translation vector.
+ * @param n_children The number of child nodes.
+ * @param children Pointer to the array of child nodes.
+*/
 template<typename R>
 CUDA_GLOBAL void
 add_node_geometry(mqi::node_t<R>*  node,
@@ -108,6 +198,26 @@ add_node_geometry(mqi::node_t<R>*  node,
     //std::cout << "Adding node geometry complete!" << std::endl;
 }
 
+/*!
+ * @brief CUDA kernel to add scorer data to a node on the GPU.
+ * @tparam R The floating-point type (e.g., float, double).
+ * @param node Pointer to the node on the GPU.
+ * @param n_scorers The number of scorers to add.
+ * @param scorers_data Pointer to the array of scorer data pointers.
+ * @param scorers_count Pointer to the array of scorer count pointers (for variance scoring).
+ * @param scorers_mean Pointer to the array of scorer mean pointers (for variance scoring).
+ * @param scorers_variance Pointer to the array of scorer variance pointers (for variance scoring).
+ * @param scorer_types Pointer to the array of scorer types.
+ * @param scorer_sizes Pointer to the array of scorer sizes.
+ * @param scorer_names Pointer to the array of scorer names.
+ * @param fp Pointer to the array of compute_hit function pointers.
+ * @param roi_method Pointer to the array of ROI mapping methods.
+ * @param roi_original_length Pointer to the array of original ROI lengths.
+ * @param roi_length Pointer to the array of ROI lengths.
+ * @param roi_start Pointer to the array of ROI start pointers.
+ * @param roi_stride Pointer to the array of ROI stride pointers.
+ * @param roi_acc_stride Pointer to the array of ROI accumulated stride pointers.
+*/
 template<typename R>
 CUDA_GLOBAL void
 add_node_scorers(mqi::node_t<R>*         node,
@@ -558,24 +668,48 @@ upload_density(__half* c_density, __half*& g_density, uint32_t size_) {
     gpu_err_chk(cudaMemcpy(g_density, c_density, size_ * sizeof(__half), cudaMemcpyHostToDevice));
 }
 
+/*!
+ * @brief Uploads a scorer offset vector (uint16_t) from CPU to GPU.
+ * @param src Pointer to the source vector on the CPU.
+ * @param dest Reference to the pointer for the destination vector on the GPU.
+ * @param size_ The number of elements in the vector.
+*/
 void
 upload_scorer_offset_vector(uint16_t* src, uint16_t*& dest, size_t size_) {
     gpu_err_chk(cudaMalloc(&dest, size_ * sizeof(uint16_t)));
     gpu_err_chk(cudaMemcpy(dest, src, size_ * sizeof(uint16_t), cudaMemcpyHostToDevice));
 }
 
+/*!
+ * @brief Uploads a scorer offset vector (uint32_t) from CPU to GPU.
+ * @param src Pointer to the source vector on the CPU.
+ * @param dest Reference to the pointer for the destination vector on the GPU.
+ * @param size_ The number of elements in the vector.
+*/
 void
 upload_scorer_offset_vector(uint32_t* src, uint32_t*& dest, size_t size_) {
     gpu_err_chk(cudaMalloc(&dest, size_ * sizeof(uint32_t)));
     gpu_err_chk(cudaMemcpy(dest, src, size_ * sizeof(uint32_t), cudaMemcpyHostToDevice));
 }
 
+/*!
+ * @brief Uploads a scorer offset vector (unsigned long) from CPU to GPU.
+ * @param src Pointer to the source vector on the CPU.
+ * @param dest Reference to the pointer for the destination vector on the GPU.
+ * @param size_ The number of elements in the vector.
+*/
 void
 upload_scorer_offset_vector(unsigned long* src, unsigned long*& dest, size_t size_) {
     gpu_err_chk(cudaMalloc(&dest, size_ * sizeof(uint32_t)));
     gpu_err_chk(cudaMemcpy(dest, src, size_ * sizeof(uint32_t), cudaMemcpyHostToDevice));
 }
 
+/*!
+ * @brief Uploads a scorer offset vector (unsigned long long int) from CPU to GPU.
+ * @param src Pointer to the source vector on the CPU.
+ * @param dest Reference to the pointer for the destination vector on the GPU.
+ * @param size_ The number of elements in the vector.
+*/
 void
 upload_scorer_offset_vector(unsigned long long int*  src,
                             unsigned long long int*& dest,

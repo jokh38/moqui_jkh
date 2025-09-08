@@ -1,5 +1,12 @@
 #ifndef MQI_KERNEL_FUNCTIONS_HPP
 #define MQI_KERNEL_FUNCTIONS_HPP
+
+/*!
+ * @file mqi_kernel_functions.hpp
+ * @brief A convenience header that includes all CUDA kernel-related functions for the Moqui simulation engine.
+ * @details This file aggregates the headers for data transfer (upload/download), particle transport, and other GPU-specific operations, simplifying the inclusion of these components in other parts of the codebase.
+*/
+
 #include <cassert>
 #include <valarray>
 
