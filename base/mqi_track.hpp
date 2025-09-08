@@ -7,76 +7,89 @@
 namespace mqi
 {
 
-///< Particle type
+/**
+ * @enum particle_t
+ * @brief Defines the types of particles that can be simulated.
+ */
 typedef enum
 {
-    PHOTON   = 0,
-    ELECTRON = 1,
-    PROTON   = 2,
-    NEUTRON  = 3
+    PHOTON   = 0, ///< A photon particle.
+    ELECTRON = 1, ///< An electron particle.
+    PROTON   = 2, ///< A proton particle.
+    NEUTRON  = 3  ///< A neutron particle.
 } particle_t;
-//PDG[PHOTON] =
-//PDG[PROTON] = 2212 //
 
-///< Process type
+/**
+ * @enum process_t
+ * @brief Defines the physics or geometry process that limits a particle's transport step.
+ */
 typedef enum
 {
-    BEGIN    = 0,
-    MAX_STEP = 1,
-    BOUNDARY = 2,
-    CSDA     = 3,
-    D_ION    = 4,
-    PP_E     = 5,
-    PO_E     = 6,
-    PO_I     = 7,
-    KILLED0  = 8,
-    KILLED1  = 9
+    BEGIN    = 0, ///< Initial state at the beginning of a track.
+    MAX_STEP = 1, ///< Step was limited by the maximum allowed step size.
+    BOUNDARY = 2, ///< Step was limited by a geometry boundary crossing.
+    CSDA     = 3, ///< Step was limited by the continuous slowing down approximation range.
+    D_ION    = 4, ///< Step was limited by a delta-electron ionization event.
+    PP_E     = 5, ///< Step was limited by a proton-proton elastic scattering event.
+    PO_E     = 6, ///< Step was limited by a proton-oxygen elastic scattering event.
+    PO_I     = 7, ///< Step was limited by a proton-oxygen inelastic scattering event.
+    KILLED0  = 8, ///< Particle was killed for a generic reason.
+    KILLED1  = 9  ///< Particle was killed for another generic reason.
 } process_t;
 
-///< status of particle
-///< CREATED : just created
-///< ALIVE   : under tracking
-///< STOPPED : no further tracking is required due to limitation, e.g., cut
-///< KILLED  : no further tracking is required due to energy 0 or exit world boundary?
+/**
+ * @enum status_t
+ * @brief Defines the current lifecycle status of a particle track.
+ */
 typedef enum
 {
-    CREATED = 0,   ///< created
-    STOPPED = 3    ///< stopped by physics process
+    CREATED = 0, ///< The track has been created but not yet transported.
+    STOPPED = 3  ///< The track has been stopped due to a physics process or energy cut-off and will no longer be transported.
 } status_t;
 
-///< Track class
-/// pointer to geometry where current track is placed
-/// pre-/post- vertex points: vtx0 vtx1
-
+/**
+ * @class track_t
+ * @brief Represents a particle's state and its path through the simulation.
+ * @details This class is a fundamental data structure that encapsulates all information about a particle
+ * during its simulation, including its type, status, energy, position, direction, and the physics process
+ * that governed its most recent step. It represents a single step of the particle's journey, from a
+ * pre-step vertex (`vtx0`) to a post-step vertex (`vtx1`).
+ * @tparam R The floating-point type for coordinate and energy values (e.g., float, double).
+ */
 template<typename R>
 class track_t
 {
 public:
-    uint32_t  scorer_column;   ///< id of beamlet or time-index can be used for Dij or Dit matrix
-    status_t  status;          ///< particle status
-    process_t process;         ///< id of physics process that limit the step,
-    ///< -1: geometry, 0: CSDA, 1: delta, 2: pp-e, 3: po-e, 4: po-i
-    bool       primary;
-    particle_t particle;   ///< particle type,
+    uint32_t  scorer_column; ///< An ID, often for a beamlet or source, used to create influence matrices (e.g., Dij).
+    status_t  status;        ///< The current lifecycle status of the particle (e.g., CREATED, STOPPED).
+    process_t process;       ///< The physics or geometry process that limited the last step.
+    bool      primary;       ///< Flag indicating if this is a primary particle (`true`) or a secondary (`false`).
+    particle_t particle;     ///< The type of the particle (e.g., PROTON, ELECTRON).
 
-    vertex_t<R> vtx0;   ///< vertex pre
-    vertex_t<R> vtx1;   ///< vertex post
+    vertex_t<R> vtx0; ///< The pre-step vertex (start of the current step).
+    vertex_t<R> vtx1; ///< The post-step vertex (end of the current step).
 
-    R          dE       = 0.0;       ///< total energy deposit between vtx0 to vtx1
-    R          local_dE = 0.0;       ///< total energy deposit between vtx0 to vtx1
-    node_t<R>* c_node   = nullptr;   ///< current node
+    R dE       = 0.0;     ///< The total energy deposited along the current step.
+    R local_dE = 0.0;     ///< The energy deposited locally (e.g., from delta electrons below the tracking cut-off).
+    node_t<R>* c_node = nullptr; ///< A pointer to the current geometry node (volume) the track is in.
 
-    intersect_t<R> its;   ///< geometry information, intersection, copy number
+    intersect_t<R> its; ///< Stores information about the next geometry intersection.
 
-    vec3<R> ref_vector = vec3<R>(0, 0, 1);
-    ///< Defaut constructor
+    vec3<R> ref_vector = vec3<R>(0, 0, 1); ///< A reference vector (0,0,1) used as a basis for rotations.
+
+    /**
+     * @brief Default constructor. Initializes a primary particle at the beginning of its life.
+     */
     CUDA_HOST_DEVICE
     track_t() :
         status(CREATED), process(BEGIN), primary(true), dE(0), scorer_column(0), local_dE(0) {
         ;
     }
 
-    ///< Constructor
+    /**
+     * @brief Constructs a track starting from a given vertex.
+     * @param v The initial vertex for the track. Both `vtx0` and `vtx1` are set to this value.
+     */
     CUDA_HOST_DEVICE
     track_t(const vertex_t<R>& v) :
         status(CREATED), process(BEGIN), primary(true), dE(0), scorer_column(0), local_dE(0) {
@@ -84,7 +97,9 @@ public:
         vtx1 = v;
     }
 
-    ///< Constructor
+    /**
+     * @brief Constructs a track with fully specified initial state.
+     */
     CUDA_HOST_DEVICE
     track_t(status_t    s,
             process_t   p,
@@ -99,7 +114,9 @@ public:
         ;
     }
 
-    ///< copy constructor
+    /**
+     * @brief Copy constructor.
+     */
     CUDA_HOST_DEVICE
     track_t(const track_t& rhs) {
         scorer_column = rhs.scorer_column;
@@ -116,33 +133,48 @@ public:
         ref_vector    = rhs.ref_vector;
     }
 
-    ///< Destructor
+    /**
+     * @brief Destructor.
+     */
     CUDA_HOST_DEVICE
     ~track_t() {
         ;
     }
 
-    ///< Deposit energy
+    /**
+     * @brief Adds to the total energy deposited in this step.
+     * @param e The amount of energy to deposit.
+     */
     CUDA_HOST_DEVICE
     void
     deposit(R e) {
         dE += e;
     }
 
-    ///< Deposit energy
+    /**
+     * @brief Adds to the locally deposited energy in this step.
+     * @param e The amount of local energy to deposit.
+     */
     CUDA_HOST_DEVICE
     void
     local_deposit(R e) {
         local_dE += e;
     }
 
+    /**
+     * @brief Checks if the track's status is STOPPED.
+     * @return `true` if the track is stopped, `false` otherwise.
+     */
     CUDA_HOST_DEVICE
     bool
     is_stopped() {
         return status == STOPPED;
     }
 
-    ///< Update vertex point for given R
+    /**
+     * @brief Reduces the length of the current step by a given ratio.
+     * @param ratio The factor by which to shorten the step (0 < ratio < 1).
+     */
     CUDA_HOST_DEVICE
     void
     shorten_step(R ratio)   //0 < ratio < 1
@@ -150,7 +182,11 @@ public:
         vtx1.pos = vtx0.pos + (vtx1.pos - vtx0.pos) * ratio;
     }
 
-    ///<
+    /**
+     * @brief Updates the post-step direction after a scattering event.
+     * @param theta The polar scattering angle.
+     * @param phi The azimuthal scattering angle.
+     */
     CUDA_HOST_DEVICE
     void
     update_post_vertex_direction(const R& theta, const R& phi) {
@@ -162,23 +198,30 @@ public:
         vtx1.dir.normalize();
     }
 
-    ///< called by CSDA.
-    ///< no needs to get called by nuclear interactions
+    /**
+     * @brief Updates the post-step position after a straight-line transport step.
+     * @param len The length of the step.
+     */
     CUDA_HOST_DEVICE
     void
     update_post_vertex_position(const R& len) {
         vtx1.pos = vtx0.pos + vtx0.dir * len;
     }
 
-    ///<
+    /**
+     * @brief Updates the post-step kinetic energy after an energy loss event.
+     * @param e The amount of energy lost.
+     */
     CUDA_HOST_DEVICE
     void
     update_post_vertex_energy(const R& e) {
         vtx1.ke -= e;
     }
 
-    ///< Proceed a step
-    ///< vtx0 = vtx1
+    /**
+     * @brief Finalizes the current step and prepares for the next one.
+     * @details Sets the pre-step vertex (`vtx0`) to the current post-step vertex (`vtx1`) and resets energy deposition counters.
+     */
     CUDA_HOST_DEVICE
     void
     move() {
@@ -187,7 +230,9 @@ public:
         local_dE = 0;
     }
 
-    ///< Change particle status
+    /**
+     * @brief Sets the track's status to STOPPED.
+     */
     CUDA_HOST_DEVICE
     void
     stop() {
@@ -195,7 +240,14 @@ public:
     }
 };
 
-///< Check invalid direction in track
+/**
+ * @brief A debugging function to assert the validity of a track's direction vectors.
+ * @details Checks if the direction vectors in `vtx0` or `vtx1` contain NaN values or are zero vectors,
+ * which would indicate a numerical error. If an error is found, it prints track details and exits.
+ * @tparam R The floating-point type of the track.
+ * @param trk The track to check.
+ * @param id An optional identifier to print upon failure.
+ */
 template<typename R>
 CUDA_HOST_DEVICE void
 assert_track(const mqi::track_t<R>& trk, int8_t id = -1) {

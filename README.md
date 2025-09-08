@@ -20,10 +20,13 @@ This project provides the low-level components for building complex simulations,
 
 ### Prerequisites
 
--   A C++ compiler that supports C++11 or later.
--   CMake (version 3.10 or later).
--   (Optional) NVIDIA CUDA Toolkit (version 10.0 or later) for GPU acceleration.
--   [GDCM](http://gdcm.sourceforge.net/) (Grassroots DICOM) library for DICOM file handling.
+-   **C++ Compiler**: A compiler that supports C++11 or later (e.g., GCC, Clang, MSVC).
+-   **CMake**: Version 3.10 or later. You can download it from the [official CMake website](https://cmake.org/download/).
+-   **NVIDIA CUDA Toolkit**: (Optional) Version 10.0 or later is required for GPU acceleration. You can download it from the [NVIDIA Developer website](https://developer.nvidia.com/cuda-toolkit).
+-   **GDCM (Grassroots DICOM)**: A library for DICOM file handling. You can install it using a package manager.
+    -   On Debian/Ubuntu: `sudo apt-get install libgdcm-tools`
+    -   On macOS (using Homebrew): `brew install gdcm`
+    -   Alternatively, download from the [GDCM SourceForge page](http://gdcm.sourceforge.net/).
 
 ### Installation
 
@@ -33,7 +36,7 @@ This project provides the low-level components for building complex simulations,
     cd moqui-cpp
     ```
 
-2.  **Create a build directory:**
+2.  **Create a build directory:** It's best practice to build the project in a separate directory.
     ```bash
     mkdir build
     cd build
@@ -52,6 +55,7 @@ This project provides the low-level components for building complex simulations,
     ```bash
     make
     ```
+    After a successful build, the executables can be found in the `build/bin` directory.
 
 ## Usage
 
@@ -59,16 +63,16 @@ The project can be used as a library in your own C++ applications or through the
 
 ### As a Library
 
-To use Moqui C++ as a library, you can include the necessary headers in your source files and link against the compiled library. The `base/` directory contains the core headers for building your simulation. The main entry point for simulations is typically through the `mqi::treatment_session` class.
+To use Moqui C++ as a library, you can include the necessary headers from the `base/` and other directories in your source files and link against the compiled library generated during the build process. The main entry point for simulations is typically through the `mqi::treatment_session` class.
 
 ### Command-Line Interface
 
-The project includes several command-line tools for running simulations and tests. These tools can be found in the `build/bin` directory after building the project.
+The project includes several command-line tools for running simulations and tests. After building, these tools can be found in the `build/bin` directory.
 
 A typical simulation is run using an input file that specifies the parameters for the simulation. For example:
 
 ```bash
-./path/to/executable -i /path/to/your/input.txt
+./build/bin/executable_name -i /path/to/your/input.txt
 ```
 
 An example `input.txt` file might look like this:
@@ -86,6 +90,8 @@ OverwriteResults        true
 SimulationType          perBeam
 BeamNumbers             1,2,3
 ParticlesPerHistory     1000.0
+SaveDoseToText          true
+ScoreLet                true
 ```
 
 #### Common Input Parameters
@@ -103,32 +109,42 @@ ParticlesPerHistory     1000.0
 | `SimulationType`    | The type of simulation to run (`perBeam` or `perSpot`).                                                 |
 | `BeamNumbers`       | A comma-separated list of beam numbers to simulate.                                                     |
 | `ParticlesPerHistory` | The number of particles to simulate per history.                                                        |
+| `SaveDoseToText`    | If `true`, saves the final dose grid as a text file in addition to the specified `OutputFormat`.        |
+| `ScoreLet`          | If `true`, enables the calculation and scoring of Linear Energy Transfer (LET).                         |
 
-For a full list of available options and parameters, please refer to the source code and the documentation.
+For a full list of available options and parameters, please refer to the source code and the Doxygen documentation.
 
 ## Documentation
 
-Comprehensive documentation for the Moqui C++ API is generated using Doxygen. To generate the documentation, you will need to have Doxygen installed. From the root of the repository, you can run:
+Comprehensive documentation for the Moqui C++ API can be generated using [Doxygen](https://www.doxygen.nl/). To generate the documentation, you will need to have Doxygen installed.
 
+- On Debian/Ubuntu: `sudo apt-get install doxygen graphviz`
+- On macOS (using Homebrew): `brew install doxygen`
+
+Once installed, run the following command from the root of the repository:
 ```bash
 doxygen Doxyfile
 ```
 
-This will generate an HTML documentation in the `docs/html` directory.
+This will generate an HTML documentation in the `docs/html` directory. Open `docs/html/index.html` in your browser to view the documentation.
 
 The `code_structure.md` file provides a high-level overview of the repository's structure, and `progress.md` tracks the documentation status of the files. The `todolist.txt` file outlines the remaining documentation work.
+
+## Testing
+
+A formal testing suite has not yet been established for this project. Contributions in this area, such as adding unit tests or integration tests, are highly welcome.
 
 ## Project Structure
 
 The repository is organized into the following main directories:
 
--   `base/`: Contains the core classes and data structures for the Moqui toolkit.
-    -   `distributions/`: Particle phase-space distributions.
-    -   `environments/`: Simulation environments, such as phantoms and patient-specific setups.
-    -   `materials/`: Material definitions and properties.
-    -   `scorers/`: Classes for scoring physical quantities like dose and LET.
--   `kernel_functions/`: Contains CUDA kernels and other GPU-related code for high-performance computations.
--   `treatment_machines/`: Contains definitions for specific treatment machine models.
+-   `base/`: Contains the core classes and data structures for the Moqui toolkit. This includes fundamental components like particle tracks, vertices, 3D grids, and physics interaction models.
+    -   `distributions/`: Classes for sampling from various particle phase-space distributions (e.g., uniform, Gaussian).
+    -   `environments/`: Classes that define the simulation world, such as phantoms or patient-specific CT-based environments.
+    -   `materials/`: Classes for material definitions and handling material properties.
+    -   `scorers/`: Classes for scoring physical quantities like dose, LET, and track length.
+-   `kernel_functions/`: Contains CUDA kernels and other GPU-specific code for high-performance computations, such as particle transport.
+-   `treatment_machines/`: Contains definitions for specific radiotherapy treatment machine models, including their geometric components.
 
 A detailed breakdown of the file structure can be found in `code_structure.md`.
 

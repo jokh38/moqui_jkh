@@ -52,3 +52,14 @@ The following files have been fully documented with Doxygen-style docstrings:
 44. `base/mqi_physics_constants.hpp`
 45. `base/mqi_physics_list.hpp`
 46. `base/mqi_po_elastic.hpp`
+47. `base/mqi_po_inelastic.hpp`
+48. `base/mqi_pp_elastic.hpp`
+49. `base/mqi_rangeshifter.hpp`
+50. `base/mqi_rect3d.hpp`
+51. `base/mqi_relativistic_quantities.hpp`
+52. `base/mqi_roi.hpp`
+53. `base/mqi_scorer.hpp`
+54. `base/mqi_sparse_io.hpp`
+55. `base/mqi_threads.hpp`
+56. `base/mqi_track.hpp`
+57. `base/mqi_track_stack.hpp`

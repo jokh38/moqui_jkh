@@ -70,26 +70,43 @@ CUDA_CONSTANT const float cs_po_i_g4_table[600] = {
     0.90601, 0.90601, 0.90601, 0.90601, 0.90634, 0.90634, 0.90634, 0.90634, 0.90634, 0.90634,
     0.90634, 0.90634, 0.90634, 0.90634, 0.90668, 0.90668, 0.90668, 0.90668, 0.90668, 0.90668
 };
-///< Proton-Oxygen inelastic interaction
+/**
+ * @brief Represents the inelastic interaction between a proton and an oxygen nucleus.
+ * @details This class calculates the cross-section for p-O inelastic scattering based on an analytical model.
+ * It serves as a base class for more complex models, such as those using tabulated data.
+ * @tparam R The floating-point type (e.g., float, double).
+ */
 template<typename R>
 class po_inelastic : public interaction<R, mqi::PROTON>
 {
 public:
-    R E_bind;   ///MeV, binding energy, const R E_bind doesn't work with CUDA_SHARED. class heirachy
-    R E_mini;   ///MeV, minimum energy for PO inelastic
+    R E_bind;   ///< MeV, binding energy of the oxygen nucleus. This cannot be const due to CUDA shared memory limitations with class hierarchies.
+    R E_mini;   ///< MeV, minimum kinetic energy required for a proton to initiate an inelastic collision.
 
 public:
+    /**
+     * @brief Default constructor. Initializes the binding and minimum energies.
+     */
     CUDA_HOST_DEVICE
     po_inelastic() {
         E_bind = 5.0;
         E_mini = 3.0;
     }
 
+    /**
+     * @brief Destructor.
+     */
     CUDA_HOST_DEVICE
     ~po_inelastic() {
         ;
     }
 
+    /**
+     * @brief Calculates the macroscopic cross-section for p-O inelastic scattering.
+     * @param rel A struct containing the relativistic quantities of the incident proton.
+     * @param mat A struct containing the properties of the target material.
+     * @return The macroscopic cross-section in cm^-1.
+     */
     CUDA_HOST_DEVICE
     virtual R
     cross_section(const relativistic_quantities<R>& rel, const material_t<R>& mat) {
@@ -104,6 +121,16 @@ public:
         return cs;
     }
 
+    /**
+     * @brief A virtual function to handle actions during a simulation step.
+     * @details This function is intended to be overridden by derived classes to implement specific behaviors
+     * that occur as a particle is transported through a medium.
+     * @param trk The particle track being simulated.
+     * @param stk The stack to which secondary particles can be added.
+     * @param rng The random number generator.
+     * @param len The length of the current simulation step.
+     * @param mat The material through which the particle is passing.
+     */
     CUDA_HOST_DEVICE
     virtual void
     along_step(track_t<R>&       trk,
@@ -115,24 +142,37 @@ public:
     }
 };
 
-///< Proton-oxygen inelastic interaction based on tabulated data
+/**
+ * @brief Represents p-O inelastic interaction using tabulated cross-section data.
+ * @details This class extends `po_inelastic` to provide a more accurate cross-section calculation
+ * based on interpolated values from a data table. It also includes a detailed `post_step` model
+ * to simulate the full interaction, including energy loss and the production of secondary particles.
+ * @tparam R The floating-point type (e.g., float, double).
+ */
 template<typename R>
 class po_inelastic_tabulated : public po_inelastic<R>
 {
 public:
-    const R* cs_table;
-    R        Ek_min;   //= 0.5   ;
-    R        Ek_max;   //= 300.0 ;
-    R        dEk;      //= 0.5   ;
+    const R* cs_table;  ///< Pointer to the tabulated cross-section data.
+    R        Ek_min;    ///< Minimum kinetic energy in the cross-section table.
+    R        Ek_max;    ///< Maximum kinetic energy in the cross-section table.
+    R        dEk;       ///< Energy step size in the cross-section table.
 
-    R E_bind;
-    R E_ratio;
-    R E_mini;
-    R Prob_2nd;
-    R Prob_long;
-    R power;
+    R E_bind;           ///< Binding energy of the target nucleus.
+    R E_ratio;          ///< Ratio for reducing binding energy after each emission.
+    R E_mini;           ///< Minimum energy for secondary particle generation.
+    R Prob_2nd;         ///< Probability of generating a secondary proton.
+    R Prob_long;        ///< Cumulative probability for generating a long-range particle.
+    R power;            ///< Power-law exponent for sampling secondary particle energy.
 
 public:
+    /**
+     * @brief Constructs a tabulated p-O inelastic interaction object.
+     * @param m The minimum kinetic energy (Ek_min) in the table.
+     * @param M The maximum kinetic energy (Ek_max) in the table.
+     * @param s The energy step (dEk) in the table.
+     * @param p A pointer to the cross-section data table.
+     */
     CUDA_HOST_DEVICE
     po_inelastic_tabulated(R m, R M, R s, const R* p) : cs_table(p) {
         Ek_min    = m;
@@ -146,11 +186,20 @@ public:
         Prob_long = Prob_2nd + (1 - Prob_2nd) * 0.99;
     }
 
+    /**
+     * @brief Destructor. Nullifies the pointer to the cross-section table.
+     */
     CUDA_HOST_DEVICE
     ~po_inelastic_tabulated() {
         cs_table = nullptr;
     }
 
+    /**
+     * @brief Calculates the macroscopic cross-section using linear interpolation on the tabulated data.
+     * @param rel A struct containing the relativistic quantities of the incident proton.
+     * @param mat A struct containing the properties of the target material.
+     * @return The interpolated macroscopic cross-section in cm^-1.
+     */
     CUDA_HOST_DEVICE
     virtual R
     cross_section(const relativistic_quantities<R>& rel, const material_t<R>& mat) {
@@ -167,7 +216,18 @@ public:
         return cs;
     }
 
-    ///< Post-step method to update track's KE, pos, dir, dE, status
+    /**
+     * @brief Simulates the interaction after a transport step.
+     * @details This method models the consequences of a p-O inelastic collision. It iteratively dissipates
+     * the projectile's energy, creating secondary particles (protons), accounting for long-range and short-range
+     * energy losses, and updating the primary track's state. The track is stopped at the end of the interaction.
+     * @param trk The primary particle track that underwent the interaction.
+     * @param stk The secondary particle stack where new particles are pushed.
+     * @param rng The random number generator for stochastic processes.
+     * @param len The step length (not used in this model).
+     * @param mat The material in which the interaction occurred.
+     * @param score_local_deposit Flag indicating whether to score energy locally.
+     */
     CUDA_HOST_DEVICE
     virtual void
     post_step(track_t<R>&       trk,
