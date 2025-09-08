@@ -1,9 +1,9 @@
+/**
+ * @file
+ * @brief Defines 3x3 and 4x4 matrix classes for 3D transformations.
+ */
 #ifndef MQI_MATRIX_H
 #define MQI_MATRIX_H
-
-/// \file
-///
-/// RT-Ion matrix 3x3 and 4x4
 
 #include <array>
 #include <cassert>
@@ -15,40 +15,59 @@
 namespace mqi
 {
 
-/// \class mat3x3
-/// 3x3 matrix
-/// \tparam T type of matrix elements
+/**
+ * @class mat3x3
+ * @brief A class for 3x3 matrix operations, primarily for 3D rotations.
+ * @tparam T The data type of the matrix elements (e.g., float or double).
+ */
 template<typename T>
 class mat3x3
 {
 public:
-    ///< angle in radian
-    T x;
-    T y;
-    T z;
-    //matrix element
-    T xx;
-    T xy;
-    T xz;
-    T yx;
-    T yy;
-    T yz;
-    T zx;
-    T zy;
-    T zz;
+    T x;    ///< Rotation angle around the x-axis in radians.
+    T y;    ///< Rotation angle around the y-axis in radians.
+    T z;    ///< Rotation angle around the z-axis in radians.
+    T xx;   ///< Element at row 1, column 1.
+    T xy;   ///< Element at row 1, column 2.
+    T xz;   ///< Element at row 1, column 3.
+    T yx;   ///< Element at row 2, column 1.
+    T yy;   ///< Element at row 2, column 2.
+    T yz;   ///< Element at row 2, column 3.
+    T zx;   ///< Element at row 3, column 1.
+    T zy;   ///< Element at row 3, column 2.
+    T zz;   ///< Element at row 3, column 3.
 
+    /**
+     * @brief Default constructor. Initializes to an identity matrix.
+     */
     CUDA_HOST_DEVICE
     mat3x3() :
         x(0), y(0), z(0), xx(1.0), xy(0), xz(0), yx(0), yy(1.0), yz(0), zx(0), zy(0), zz(1.0) {
         ;
     }
 
+    /**
+     * @brief Constructs a matrix from 9 specified elements.
+     * @param[in] xx Element at row 1, column 1.
+     * @param[in] xy Element at row 1, column 2.
+     * @param[in] xz Element at row 1, column 3.
+     * @param[in] yx Element at row 2, column 1.
+     * @param[in] yy Element at row 2, column 2.
+     * @param[in] yz Element at row 2, column 3.
+     * @param[in] zx Element at row 3, column 1.
+     * @param[in] zy Element at row 3, column 2.
+     * @param[in] zz Element at row 3, column 3.
+     */
     CUDA_HOST_DEVICE
     mat3x3(T xx, T xy, T xz, T yx, T yy, T yz, T zx, T zy, T zz) :
         x(0), y(0), z(0), xx(xx), xy(xy), xz(xz), yx(yx), yy(yy), yz(yz), zx(zx), zy(zy), zz(zz) {
         ;
     }
 
+    /**
+     * @brief Copy constructor.
+     * @param[in] ref The matrix to copy from.
+     */
     CUDA_HOST_DEVICE
     mat3x3(const mat3x3& ref) {
         x  = ref.x;
@@ -65,6 +84,13 @@ public:
         zz = ref.zz;
     }
 
+    /**
+     * @brief Constructs a rotation matrix from Euler angles.
+     * @param[in] a Rotation angle around the x-axis in radians.
+     * @param[in] b Rotation angle around the y-axis in radians.
+     * @param[in] c Rotation angle around the z-axis in radians.
+     * @details Rotations are applied in x, then y, then z order.
+     */
     CUDA_HOST_DEVICE
     mat3x3(T a, T b, T c) :
         x(a), y(b), z(c), xx(1.0), xy(0), xz(0), yx(0), yy(1.0), yz(0), zx(0), zy(0), zz(1.0) {
@@ -75,6 +101,10 @@ public:
         if (z != 0) this->rotate_z(z);
     }
 
+    /**
+     * @brief Constructs a rotation matrix from an array of Euler angles.
+     * @param[in] abc An array containing rotation angles {x, y, z} in radians.
+     */
     CUDA_HOST_DEVICE
     mat3x3(std::array<T, 3>& abc) :
         x(abc[0]), y(abc[1]), z(abc[2]), xx(1.0), xy(0), xz(0), yx(0), yy(1.0), yz(0), zx(0), zy(0),
@@ -84,7 +114,12 @@ public:
         if (z != 0) this->rotate_z(z);
     }
 
-    //expecting normalized vectors, f and t
+    /**
+     * @brief Constructs a rotation matrix that aligns one vector to another.
+     * @param[in] f The source vector (from).
+     * @param[in] t The target vector (to).
+     * @details Uses the method from "An efficient method for aligning a 3D vector with a target vector" by Moller & Hughes (1999). Expects normalized vectors.
+     */
     CUDA_HOST_DEVICE
     mat3x3(const vec3<T>& f, const vec3<T>& t) {
         ///< a matrix aligns vector (f) to vector (t)
@@ -149,10 +184,19 @@ public:
         }
     }
 
+    /**
+     * @brief Destructor.
+     */
     CUDA_HOST_DEVICE ~mat3x3() {
         ;
     }
 
+    /**
+     * @brief Applies a rotation to the current matrix using Euler angles.
+     * @param[in] a Rotation angle around the x-axis in radians.
+     * @param[in] b Rotation angle around the y-axis in radians.
+     * @param[in] c Rotation angle around the z-axis in radians.
+     */
     CUDA_HOST_DEVICE
     void
     rotate(T a, T b, T c) {
@@ -164,6 +208,11 @@ public:
         if (z != 0) this->rotate_z(z);
     }
 
+    /**
+     * @brief Calculates the Euler angles (psi, theta, phi) for the rotation matrix.
+     * @param[in] y_is_2nd_quad A flag to resolve ambiguity, not currently used.
+     * @return A vec3<T> containing the Euler angles (x: psi, y: theta, z: phi).
+     */
     CUDA_HOST
     vec3<T>
     euler_xyz(bool y_is_2nd_quad = false) {
@@ -200,15 +249,14 @@ public:
                 psi_th_phi.y = -1.0 * M_PI * 0.5;
             }
         }
-
-#if defined(__CUDACC__)
-
-#else
-
-#endif
         return psi_th_phi;
     }
 
+    /**
+     * @brief Post-multiplies the matrix by a rotation around the x-axis.
+     * @param[in] a The rotation angle in radians.
+     * @return A reference to the modified matrix.
+     */
     CUDA_HOST_DEVICE
     mat3x3&
     rotate_x(T a) {
@@ -230,6 +278,11 @@ public:
         return *this;
     }
 
+    /**
+     * @brief Post-multiplies the matrix by a rotation around the y-axis.
+     * @param[in] a The rotation angle in radians.
+     * @return A reference to the modified matrix.
+     */
     CUDA_HOST_DEVICE
     mat3x3&
     rotate_y(T a) {
@@ -251,6 +304,11 @@ public:
         return *this;
     }
 
+    /**
+     * @brief Post-multiplies the matrix by a rotation around the z-axis.
+     * @param[in] a The rotation angle in radians.
+     * @return A reference to the modified matrix.
+     */
     CUDA_HOST_DEVICE
     mat3x3&
     rotate_z(T a) {
@@ -272,6 +330,11 @@ public:
         return *this;
     }
 
+    /**
+     * @brief Multiplies the matrix by a 3-element std::array.
+     * @param[in] r The array to multiply.
+     * @return The transformed array.
+     */
     CUDA_HOST_DEVICE
     std::array<T, 3>
     operator*(const std::array<T, 3>& r) const {
@@ -280,6 +343,11 @@ public:
                                   zx * r[0] + zy * r[1] + zz * r[2] });
     }
 
+    /**
+     * @brief Multiplies the matrix by a 3D vector.
+     * @param[in] r The vector to multiply.
+     * @return The transformed vector.
+     */
     CUDA_HOST_DEVICE
     vec3<T>
     operator*(const vec3<T>& r) const {
@@ -288,12 +356,21 @@ public:
                        zx * r.x + zy * r.y + zz * r.z);
     }
 
+    /**
+     * @brief Computes the inverse of the rotation matrix (which is its transpose).
+     * @return The inverted matrix.
+     */
     CUDA_HOST_DEVICE
     mat3x3
     inverse() const {
         return mat3x3<T>(xx, yx, zx, xy, yy, zy, xz, yz, zz);
     }
 
+    /**
+     * @brief Multiplies this matrix by another 3x3 matrix.
+     * @param[in] r The matrix to multiply by.
+     * @return The resulting matrix.
+     */
     CUDA_HOST_DEVICE
     mat3x3<T>
     operator*(const mat3x3<T>& r) const {
@@ -308,6 +385,9 @@ public:
                          zx * r.xz + zy * r.yz + zz * r.zz);
     }
 
+    /**
+     * @brief Dumps the matrix elements to the console for debugging.
+     */
     CUDA_HOST_DEVICE
     void
     dump() const {
@@ -318,36 +398,41 @@ public:
 #else
         std::cout << "(xx, xy, xz) -> (" << xx << " " << xy << " " << xz << ")" << std::endl;
         std::cout << "(yx, yy, yz) -> (" << yx << " " << yy << " " << yz << ")" << std::endl;
-        std::cout << "(zx, zy, zz) -> (" << zx << " " << zy << " " << zz << ")"  << std::endl;
+        std::cout << "(zx, zy, zz) -> (" << zx << " " << zy << " " << zz << ")" << std::endl;
 #endif
     }
 };
 
-/// \class mat4x4
-/// 4x4 matrix
-/// \tparam T type of matrix elements
+/**
+ * @class mat4x4
+ * @brief A class for 4x4 matrix operations, for 3D transformations (rotation and translation).
+ * @tparam T The data type of the matrix elements (e.g., float or double).
+ */
 template<typename T>
 class mat4x4
 {
 public:
     //matrix elements
-    T xx;
-    T xy;
-    T xz;
-    T xs;
-    T yx;
-    T yy;
-    T yz;
-    T ys;
-    T zx;
-    T zy;
-    T zz;
-    T zs;
-    T sx;
-    T sy;
-    T sz;
-    T ss;
+    T xx;   ///< Element at row 1, column 1.
+    T xy;   ///< Element at row 1, column 2.
+    T xz;   ///< Element at row 1, column 3.
+    T xs;   ///< Element at row 1, column 4 (x-translation).
+    T yx;   ///< Element at row 2, column 1.
+    T yy;   ///< Element at row 2, column 2.
+    T yz;   ///< Element at row 2, column 3.
+    T ys;   ///< Element at row 2, column 4 (y-translation).
+    T zx;   ///< Element at row 3, column 1.
+    T zy;   ///< Element at row 3, column 2.
+    T zz;   ///< Element at row 3, column 3.
+    T zs;   ///< Element at row 3, column 4 (z-translation).
+    T sx;   ///< Element at row 4, column 1.
+    T sy;   ///< Element at row 4, column 2.
+    T sz;   ///< Element at row 4, column 3.
+    T ss;   ///< Element at row 4, column 4.
 
+    /**
+     * @brief Default constructor. Initializes to an identity matrix.
+     */
     CUDA_HOST_DEVICE
     mat4x4() :
         xx(1.0), xy(0), xz(0), xs(0), yx(0), yy(1.0), yz(0), ys(0), zx(0), zy(0), zz(1.0), zs(0),
@@ -355,6 +440,9 @@ public:
         ;
     }
 
+    /**
+     * @brief Constructs a matrix from 16 specified elements.
+     */
     CUDA_HOST_DEVICE
     mat4x4(T xx,
            T xy,
@@ -378,6 +466,10 @@ public:
         ;
     }
 
+    /**
+     * @brief Copy constructor.
+     * @param[in] ref The matrix to copy from.
+     */
     CUDA_HOST_DEVICE
     mat4x4(const mat4x4& ref) {
         xx = ref.xx;
@@ -401,6 +493,10 @@ public:
         ss = ref.ss;
     }
 
+    /**
+     * @brief Constructs a matrix from a raw array of 16 elements.
+     * @param[in] a Pointer to an array of 16 elements in row-major order.
+     */
     CUDA_HOST_DEVICE
     mat4x4(const T* a) {
         xx = a[0];
@@ -421,6 +517,11 @@ public:
         ss = a[15];
     }
 
+    /**
+     * @brief Constructs a transformation matrix from a rotation matrix and a translation vector.
+     * @param[in] rot The 3x3 rotation matrix.
+     * @param[in] tra The 3D translation vector.
+     */
     CUDA_HOST_DEVICE
     mat4x4(const mat3x3<T>& rot, const vec3<T>& tra) {
         xx = rot.xx;
@@ -444,6 +545,10 @@ public:
         ss = 1.0;
     }
 
+    /**
+     * @brief Constructs a transformation matrix from a rotation matrix (no translation).
+     * @param[in] rot The 3x3 rotation matrix.
+     */
     CUDA_HOST_DEVICE
     mat4x4(const mat3x3<T>& rot) {
         xx = rot.xx;
@@ -467,6 +572,10 @@ public:
         ss = 1.0;
     }
 
+    /**
+     * @brief Constructs a transformation matrix from a translation vector (no rotation).
+     * @param[in] ref The 3D translation vector.
+     */
     CUDA_HOST_DEVICE
     mat4x4(const vec3<T>& ref) {
         xx = 1.0;
@@ -490,11 +599,19 @@ public:
         ss = 1.0;
     }
 
+    /**
+     * @brief Destructor.
+     */
     CUDA_HOST_DEVICE
     ~mat4x4() {
         ;
     }
 
+    /**
+     * @brief Multiplies the matrix by a 4-element std::array.
+     * @param[in] r The array to multiply.
+     * @return The transformed array.
+     */
     CUDA_HOST_DEVICE
     std::array<T, 4>
     operator*(const std::array<T, 4>& r) const {
@@ -504,6 +621,11 @@ public:
                                   sx * r[0] + sy * r[1] + sz * r[2] + ss * r[3] });
     }
 
+    /**
+     * @brief Multiplies the matrix by a 4D vector.
+     * @param[in] r The vector to multiply.
+     * @return The transformed vector.
+     */
     CUDA_HOST_DEVICE
     vec4<T>
     operator*(const vec4<T>& r) const {
@@ -513,6 +635,12 @@ public:
                        sx * r.x + sy * r.y + sz * r.z + ss * r.s);
     }
 
+    /**
+     * @brief Multiplies the matrix by a 3D vector (point).
+     * @param[in] r The vector to multiply.
+     * @return The transformed vector.
+     * @details Assumes the vector `r` has a homogeneous coordinate of 1.
+     */
     CUDA_HOST_DEVICE
     vec3<T>
     operator*(const vec3<T>& r) const {
@@ -521,6 +649,11 @@ public:
                        zx * r.x + zy * r.y + zz * r.z + zs);
     }
 
+    /**
+     * @brief Multiplies this matrix by another 4x4 matrix.
+     * @param[in] r The matrix to multiply by.
+     * @return The resulting matrix.
+     */
     CUDA_HOST_DEVICE
     mat4x4<T>
     operator*(const mat4x4<T>& r) const {
@@ -545,6 +678,9 @@ public:
                          sx * r.xs + sy * r.ys + sz * r.zs + ss * r.ss);
     }
 
+    /**
+     * @brief Dumps the matrix elements to the console for debugging.
+     */
     CUDA_HOST_DEVICE
     void
     dump() const {
@@ -554,10 +690,14 @@ public:
         printf("(zx, zy, zz, zs) -> (%f, %f, %f, %f)\n", zx, zy, zz, zs);
         printf("(sx, sy, sz, ss) -> (%f, %f, %f, %f)\n", sx, sy, sz, ss);
 #else
-        std::cout << "(xx, xy, xz, xs) -> (" << xx << ", " << xy << ", " << xz << ", " << xs << ")" <<  std::endl;
-        std::cout << "(yx, yy, yz, ys) -> (" << yx << ", " << yy << ", " << yz << ", " << ys << ")" <<  std::endl;
-        std::cout << "(zx, zy, zz, zs) -> (" << zx << ", " << zy << ", " << zz << ", " << zs << ")" <<  std::endl;
-        std::cout << "(zx, zy, zz, ss) -> (" << sx << ", " << sy << ", " << sz << ", " << ss << ")" <<  std::endl;
+        std::cout << "(xx, xy, xz, xs) -> (" << xx << ", " << xy << ", " << xz << ", " << xs << ")"
+                  << std::endl;
+        std::cout << "(yx, yy, yz, ys) -> (" << yx << ", " << yy << ", " << yz << ", " << ys << ")"
+                  << std::endl;
+        std::cout << "(zx, zy, zz, zs) -> (" << zx << ", " << zy << ", " << zz << ", " << zs << ")"
+                  << std::endl;
+        std::cout << "(zx, zy, zz, ss) -> (" << sx << ", " << sy << ", " << sz << ", " << ss << ")"
+                  << std::endl;
 #endif
     }
 };

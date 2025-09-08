@@ -1,3 +1,7 @@
+/**
+ * @file
+ * @brief Defines the node structure for the geometry hierarchy.
+ */
 #ifndef MQI_NODE_HPP
 #define MQI_NODE_HPP
 
@@ -8,32 +12,32 @@
 #include <cuda_fp16.h>
 #endif
 
-/// navigator needs to have "struct" to store those status
-/// core-parts should be running in parallel manner, MT, CUDA, OpenCL, FPGA?
-/// navigator is shared by block level or device level.
 namespace mqi
 {
 
-///< node_t : a geometry and it's scorers
-/// T: material id
-/// R: values in x/y/z and scoreing type
+/**
+ * @struct node_t
+ * @brief Represents a node in a hierarchical geometry, containing geometry, scorers, and child nodes.
+ * @tparam R The floating-point type for scoring and geometry values (e.g., float or double).
+ * @details This structure is a core component of the simulation geometry, allowing for nested or complex arrangements. Each node can have its own geometry definition and a set of scorers to record data.
+ */
 template<typename R>
 struct node_t {
-    ///< node's geometry
-    grid3d<mqi::density_t, R>* geo = nullptr;
+    grid3d<mqi::density_t, R>* geo = nullptr;   ///< A pointer to the node's geometry, defined as a 3D grid.
 
-    ///< node's scorers
-    /// scorer's data, count, mean, and variance need to be allocated seperately
-    /// and have corresponding host pointers to download from GPU to CPU.
-    uint16_t         n_scorers        = 0;
-    scorer<R>**      scorers          = nullptr;
-    mqi::key_value** scorers_data     = nullptr;
-    mqi::key_value** scorers_count    = nullptr;
-    mqi::key_value** scorers_mean     = nullptr;
-    mqi::key_value** scorers_variance = nullptr;
+    uint16_t         n_scorers = 0;         ///< The number of scorers attached to this node.
+    scorer<R>**      scorers   = nullptr;   ///< An array of pointers to the scorer objects.
+    mqi::key_value** scorers_data =
+        nullptr;   ///< An array of pointers to the primary data for each scorer (e.g., dose).
+    mqi::key_value** scorers_count =
+        nullptr;   ///< An array of pointers to the count data for each scorer (for statistical calculations).
+    mqi::key_value** scorers_mean =
+        nullptr;   ///< An array of pointers to the mean value data for each scorer.
+    mqi::key_value** scorers_variance =
+        nullptr;   ///< An array of pointers to the variance data for each scorer.
 
-    uint16_t           n_children = 0;
-    struct node_t<R>** children   = nullptr;
+    uint16_t           n_children = 0;      ///< The number of child nodes.
+    struct node_t<R>** children   = nullptr;   ///< An array of pointers to the child nodes.
 };
 
 }   // namespace mqi

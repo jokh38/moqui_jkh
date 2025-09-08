@@ -41,3 +41,14 @@ The following files have been fully documented with Doxygen-style docstrings:
 33. `base/mqi_fippel_physics.hpp`
 34. `base/mqi_geometry.hpp`
 35. `base/mqi_grid3d.hpp`
+36. `base/mqi_hash_table.hpp`
+37. `base/mqi_interaction.hpp`
+38. `base/mqi_io.hpp`
+39. `base/mqi_material.hpp`
+40. `base/mqi_math.hpp`
+41. `base/mqi_matrix.hpp`
+42. `base/mqi_node.hpp`
+43. `base/mqi_p_ionization.hpp`
+44. `base/mqi_physics_constants.hpp`
+45. `base/mqi_physics_list.hpp`
+46. `base/mqi_po_elastic.hpp`

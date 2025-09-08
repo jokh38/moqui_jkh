@@ -1,14 +1,17 @@
+/**
+ * @file
+ * @brief Defines the proton-oxygen elastic scattering interaction models.
+ */
 #ifndef MQI_PO_ELASTIC_HPP
 #define MQI_PO_ELASTIC_HPP
 
 #include <moqui/base/mqi_interaction.hpp>
 
-///< Proton-Oxygen elastic interaction
 namespace mqi
 {
 
-///< Cross-section from Geant4
-///< 0.5 MeV 300.0 MeV with 0.5 MeV step
+/// @brief Lookup table for proton-oxygen elastic scattering cross-sections.
+/// @details Data from Geant4, covering 0.5 MeV to 300.0 MeV with a 0.5 MeV step.
 CUDA_CONSTANT const float cs_po_e_g4_table[600] = {
     0.00000, 0.00000, 0.83642, 1.59488, 2.05023, 2.35368, 2.57048, 2.73308, 2.85955, 2.96092,
     3.04356, 3.11282, 3.17103, 3.22122, 3.26438, 3.30252, 3.33597, 3.36575, 3.39252, 3.41593,
@@ -71,12 +74,24 @@ CUDA_CONSTANT const float cs_po_e_g4_table[600] = {
     0.30238, 0.30232, 0.30225, 0.30218, 0.30211, 0.30205, 0.30198, 0.30191, 0.30185, 0.30178,
     0.30171, 0.30165, 0.30158, 0.30151, 0.30145, 0.30138, 0.30131, 0.30124, 0.30118, 0.30111
 };
-///< equation
+
+/**
+ * @class po_elastic
+ * @brief An analytical model for proton-oxygen elastic scattering.
+ * @tparam R The floating-point type for calculations.
+ * @details This class implements an analytical cross-section model for p-O elastic scattering and handles the final state generation (energy transfer and scattering angle).
+ */
 template<typename R>
 class po_elastic : public interaction<R, mqi::PROTON>
 {
 public:
 public:
+    /**
+     * @brief Calculates the cross-section for p-O elastic scattering.
+     * @param[in] rel Relativistic quantities of the proton.
+     * @param[in] mat The material (not used in this analytical model).
+     * @return The cross-section in cm^2.
+     */
     CUDA_HOST_DEVICE
     virtual R
     cross_section(const relativistic_quantities<R>& rel, const material_t<R>& mat) {
@@ -92,8 +107,9 @@ public:
         return cs;
     }
 
-    ///< DoIt method to update track's KE, pos, dir, dE, status
-    ///< compute energy loss, vertex, secondaries
+    /**
+     * @brief A placeholder for along-step actions. This interaction is purely discrete.
+     */
     CUDA_HOST_DEVICE
     virtual void
     along_step(track_t<R>&       trk,
@@ -104,8 +120,16 @@ public:
         ;
     }
 
-    ///< DoIt method to update track's KE, pos, dir, dE, status
-    ///< compute energy loss, vertex, secondaries
+    /**
+     * @brief Simulates the p-O elastic scattering event.
+     * @param[in,out] trk The proton track to be updated.
+     * @param[in,out] stk The secondary particle stack.
+     * @param[in,out] rng A pointer to the random number generator.
+     * @param[in] len The step length (not used).
+     * @param[in,out] mat The material.
+     * @param[in] score_local_deposit Flag indicating if local energy deposit should be scored.
+     * @details This method calculates the energy transferred to the recoil oxygen nucleus and the scattering angle of the proton. The recoil oxygen energy is deposited locally, and the proton's energy and direction are updated.
+     */
     CUDA_HOST_DEVICE
     virtual void
     post_step(track_t<R>&       trk,
@@ -224,17 +248,29 @@ public:
     }
 };
 
-///< proton-oxygen elastic
+/**
+ * @class po_elastic_tabulated
+ * @brief A model for proton-oxygen elastic scattering that uses a tabulated cross-section.
+ * @tparam R The floating-point type for calculations.
+ * @details This class inherits from the analytical `po_elastic` model but overrides the cross-section calculation to use linear interpolation on a pre-calculated table.
+ */
 template<typename R>
 class po_elastic_tabulated : public po_elastic<R>
 {
 public:
-    const R* cs_table;
-    R        Ek_min = 0.5;
-    R        Ek_max = 300.0;
-    R        dEk    = 0.5;
+    const R* cs_table;   ///< Pointer to the cross-section table.
+    R        Ek_min = 0.5;     ///< The minimum energy of the table.
+    R        Ek_max = 300.0;   ///< The maximum energy of the table.
+    R        dEk    = 0.5;     ///< The energy step size of the table.
 
 public:
+    /**
+     * @brief Constructs a new po_elastic_tabulated object.
+     * @param[in] m The minimum energy of the table.
+     * @param[in] M The maximum energy of the table.
+     * @param[in] s The energy step size of the table.
+     * @param[in] p Pointer to the cross-section table.
+     */
     CUDA_HOST_DEVICE
     po_elastic_tabulated(R m, R M, R s, const R* p) : cs_table(p) {
         Ek_min = m;
@@ -242,11 +278,20 @@ public:
         dEk    = s;
     }
 
+    /**
+     * @brief Destructor.
+     */
     CUDA_HOST_DEVICE
     ~po_elastic_tabulated() {
         cs_table = nullptr;
     }
 
+    /**
+     * @brief Calculates the cross-section for p-O elastic scattering using table interpolation.
+     * @param[in] rel Relativistic quantities of the proton.
+     * @param[in] mat The material.
+     * @return The cross-section in cm^2.
+     */
     CUDA_HOST_DEVICE
     virtual R
     cross_section(const relativistic_quantities<R>& rel, const material_t<R>& mat) {
