@@ -3,7 +3,7 @@
 
 /// \file
 ///
-/// rectlinear geometry to represent CT, doe, DVF, etc.
+/// \brief Defines a generic, 3D rectilinear grid for storing data like CT images, dose, or vector fields.
 
 #include <algorithm>
 #include <array>
@@ -21,12 +21,21 @@ namespace mqi
 
 /**
  * @class rect3d
- * @brief A template class for a 3D rectilinear grid.
- * @details This class represents a 3D grid with non-uniform spacing along each axis. It is designed
- * to store data such as CT Hounsfield Units, dose values, or deformation vector fields. It provides
- * methods for construction, data access, trilinear interpolation, and geometric calculations.
- * @tparam T The data type of the grid values (e.g., float for dose, mqi::vec3<float> for a vector field).
- * @tparam R The data type for the grid coordinates (e.g., float, double).
+ * @brief A template class for a 3D rectilinear grid, supporting non-uniform spacing.
+ * @details
+ * This class is a fundamental data structure for representing any data that exists on a 3D
+ * grid where the spacing between points on an axis is not necessarily uniform. It is designed
+ * to store data such as CT Hounsfield Units, calculated dose values, or deformation vector fields (DVFs).
+ *
+ * It provides methods for construction, data access, trilinear interpolation, and various
+ * geometric calculations. The class uses raw pointers for its coordinate arrays (`x_`, `y_`, `z_`)
+ * and manages their memory manually with `new[]` in the constructors and `delete[]` in the destructor.
+ *
+ * For a Python developer, this is analogous to having three 1D NumPy arrays for the coordinates
+ * and a 3D NumPy array for the data, but with C++'s strong typing and manual memory management.
+ *
+ * @tparam T The data type of the grid values (e.g., `int16_t` for CT, `float` for dose, `mqi::vec3<float>` for a DVF).
+ * @tparam R The data type for the grid coordinates (e.g., `float` or `double` for precision).
  */
 template<typename T, typename R>
 class rect3d
@@ -36,47 +45,56 @@ public:
     /**
      * @enum cell_corner
      * @brief Enumerates the 8 corners of a grid cell (voxel) for interpolation.
-     * The naming convention cXYZ indicates the corner's relative position, where 0 is the lower bound and 1 is the upper bound on each axis.
+     * @details The naming convention cXYZ indicates the corner's relative position, where 0 is the lower bound
+     * and 1 is the upper bound on each axis. For example, `c000` is the corner with the minimum
+     * (x,y,z) coordinates in the cell, and `c111` is the corner with the maximum.
      */
     typedef enum
     {
         //cXYZ, 0 is less, 1 is greater
-        c000 = 0, ///< Corner at (x0, y0, z0)
-        c100,     ///< Corner at (x1, y0, z0)
-        c110,     ///< Corner at (x1, y1, z0)
-        c010,     ///< Corner at (x0, y1, z0)
-        c001,     ///< Corner at (x0, y0, z1)
-        c101,     ///< Corner at (x1, y0, z1)
-        c111,     ///< Corner at (x1, y1, z1)
-        c011,     ///< Corner at (x0, y1, z1)
+        c000 = 0, ///< Corner at (x_i,   y_j,   z_k)
+        c100,     ///< Corner at (x_i+1, y_j,   z_k)
+        c110,     ///< Corner at (x_i+1, y_j+1, z_k)
+        c010,     ///< Corner at (x_i,   y_j+1, z_k)
+        c001,     ///< Corner at (x_i,   y_j,   z_k+1)
+        c101,     ///< Corner at (x_i+1, y_j,   z_k+1)
+        c111,     ///< Corner at (x_i+1, y_j+1, z_k+1)
+        c011,     ///< Corner at (x_i,   y_j+1, z_k+1)
         cXXX      ///< Invalid or uninitialized corner
     } cell_corner;
 
 protected:
-    R* x_; ///< Ptr to an array of x-coordinates for the center of each voxel along the x-axis.
-    R* y_; ///< Ptr to an array of y-coordinates for the center of each voxel along the y-axis.
-    R* z_; ///< Ptr to an array of z-coordinates for the center of each voxel along the z-axis.
+    /// Pointer to a dynamically allocated array of x-coordinates for the center of each voxel along the x-axis.
+    R* x_;
+    /// Pointer to a dynamically allocated array of y-coordinates for the center of each voxel along the y-axis.
+    R* y_;
+    /// Pointer to a dynamically allocated array of z-coordinates for the center of each voxel along the z-axis.
+    R* z_;
 
     /// Flag to indicate if an axis is flipped (i.e., coordinates are in descending order).
     bool flip_[3] = { false, false, false };
 
-    mqi::vec3<ijk_t> dim_;   ///< The number of voxels in each dimension (dim_.x, dim_.y, dim_.z).
+    /// The number of voxels in each dimension (dim_.x, dim_.y, dim_.z).
+    mqi::vec3<ijk_t> dim_;
 
-    std::valarray<T> data_;   ///< A 1D array storing the flattened 3D grid data.
+    /// A 1D array storing the flattened 3D grid data. `std::valarray` is a C++ standard library
+    /// class optimized for numerical operations, similar in concept to a NumPy array.
+    std::valarray<T> data_;
 
 public:
     /**
-     * @brief Default constructor. Intended for use by derived classes.
+     * @brief Default constructor. Intended for use by derived classes which will manually initialize members.
      */
-    rect3d() {
+    rect3d() : x_(nullptr), y_(nullptr), z_(nullptr) {
         ;
     }
 
     /**
      * @brief Constructs a rectilinear grid from std::vector coordinates.
-     * @param x A vector of voxel center coordinates along the x-axis.
-     * @param y A vector of voxel center coordinates along the y-axis.
-     * @param z A vector of voxel center coordinates along the z-axis.
+     * @details This constructor allocates new memory for the coordinate arrays and copies the values from the input vectors.
+     * @param[in] x A vector of voxel center coordinates along the x-axis.
+     * @param[in] y A vector of voxel center coordinates along the y-axis.
+     * @param[in] z A vector of voxel center coordinates along the z-axis.
      */
     CUDA_HOST_DEVICE
     rect3d(std::vector<R>& x, std::vector<R>& y, std::vector<R>& z) {
@@ -98,12 +116,12 @@ public:
 
     /**
      * @brief Constructs a rectilinear grid from C-style array coordinates.
-     * @param x A C-style array of voxel center coordinates along the x-axis.
-     * @param xn The number of elements in the x array.
-     * @param y A C-style array of voxel center coordinates along the y-axis.
-     * @param yn The number of elements in the y array.
-     * @param z A C-style array of voxel center coordinates along the z-axis.
-     * @param zn The number of elements in the z array.
+     * @param[in] x A C-style array of voxel center coordinates along the x-axis.
+     * @param[in] xn The number of elements in the x array.
+     * @param[in] y A C-style array of voxel center coordinates along the y-axis.
+     * @param[in] yn The number of elements in the y array.
+     * @param[in] z A C-style array of voxel center coordinates along the z-axis.
+     * @param[in] zn The number of elements in the z array.
      */
     CUDA_HOST_DEVICE
     rect3d(R x[], int xn, R y[], int yn, R z[], int zn) {
@@ -125,7 +143,8 @@ public:
 
     /**
      * @brief Copy constructor.
-     * @param c The rect3d object to copy.
+     * @details Performs a deep copy of the grid, allocating new memory for the coordinate arrays.
+     * @param[in] c The rect3d object to copy.
      */
     CUDA_HOST_DEVICE
     rect3d(rect3d& c) {
@@ -144,13 +163,15 @@ public:
     }
 
     /**
-     * @brief Destructor. Releases dynamically allocated memory for coordinate arrays.
+     * @brief Destructor.
+     * @details Releases the dynamically allocated memory for the coordinate arrays.
+     * In C++, memory allocated with `new[]` must be freed with `delete[]` to prevent memory leaks.
      */
     CUDA_HOST_DEVICE
     ~rect3d() {
-        delete x_;
-        delete y_;
-        delete z_;
+        delete[] x_;
+        delete[] y_;
+        delete[] z_;
     }
 
     /**
@@ -649,7 +670,7 @@ public:
     template<typename T0, typename R0, typename S0>
     friend void
     warp_linear(rect3d<T0, R0>&            src,
-                rect3d<T0, R0>&            ref,
+                rect3d<T0, R0>&            dest,
                 rect3d<mqi::vec3<S0>, R0>& dvf,
                 T0                         fill_value);
 };
@@ -733,14 +754,14 @@ interpolate(rect3d<T0, R0>& src, rect3d<T1, R1>& dest, T1& fill_value) {
  * @tparam S0 Scalar type of the DVF vectors.
  * @param src The source grid containing the data to be warped.
  * @param dest The destination grid to be filled with the warped data.
- * @param vf The deformation vector field, which maps points from the destination space to the source space.
+ * @param dvf The deformation vector field, which maps points from the destination space to the source space.
  * @param fill_value The value to use if the warped point falls outside the source grid.
  */
 template<typename T0, typename R0, typename S0>
 void
 warp_linear(rect3d<T0, R0>&            src,
             rect3d<T0, R0>&            dest,
-            rect3d<mqi::vec3<S0>, R0>& vf,
+            rect3d<mqi::vec3<S0>, R0>& dvf,
             T0                         fill_value) {
     ///< Number of voxels: Nx, Ny, Nz
     const size_t nX = dest.dim_.x;
@@ -760,13 +781,13 @@ warp_linear(rect3d<T0, R0>&            src,
                 p_dest.x = dest.x_[i];
 
                 T0 value;
-                if (vf.is_in_point(p_dest)) {
+                if (dvf.is_in_point(p_dest)) {
                     ///
                     /// If destination point is in DVF grid points,
                     /// apply translation and then check new position is in source
                     /// Then, assign value by interpolating values at 8 coners surrounding new position.
                     ///
-                    mqi::vec3<R0> p_new = p_dest + vf(p_dest);
+                    mqi::vec3<R0> p_new = p_dest + dvf(p_dest);
                     value               = src.is_in_point(p_new) ? src(p_new) : fill_value;
                 } else {
                     value = src.is_in_point(p_dest) ? src(p_dest) : fill_value;

@@ -43,10 +43,10 @@ public:
 
     /// \brief Constructs a new 6D fan beam phase-space distribution.
     ///
-    /// \param m An array defining the sampling range: `[x_min, x_max, y_min, y_max, z_min, z_max]`.
-    /// \param s An array containing the standard deviations for `[sig_x, sig_y, sig_z, sig_x', sig_y', sig_z']`.
-    /// \param r An array containing the correlation coefficients `rho(x,x')` and `rho(y,y')`.
-    /// \param o An array containing the source-to-axis distances `[SADx, SADy]`.
+    /// \param[in] m An array defining the sampling range: `[x_min, x_max, y_min, y_max, z_min, z_max]`.
+    /// \param[in] s An array containing the standard deviations for `[sig_x, sig_y, sig_z, sig_x', sig_y', sig_z']`.
+    /// \param[in] r An array containing the correlation coefficients `rho(x,x')` and `rho(y,y')`.
+    /// \param[in] o An array containing the source-to-axis distances `[SADx, SADy]`.
     CUDA_HOST_DEVICE
     phsp_6d_fanbeam(
         std::array<T,6>& m,
@@ -64,10 +64,10 @@ public:
     
     /// \brief Constructs a new 6D fan beam phase-space distribution from constant references.
     ///
-    /// \param m A const reference to an array defining the sampling range.
-    /// \param s A const reference to an array containing the standard deviations.
-    /// \param r A const reference to an array containing the correlation coefficients.
-    /// \param o A const reference to an array containing the source-to-axis distances.
+    /// \param[in] m A const reference to an array defining the sampling range.
+    /// \param[in] s A const reference to an array containing the standard deviations.
+    /// \param[in] r A const reference to an array containing the correlation coefficients.
+    /// \param[in] o A const reference to an array containing the source-to-axis distances.
     CUDA_HOST_DEVICE
     phsp_6d_fanbeam(
 	    const std::array<T,6>& m,
