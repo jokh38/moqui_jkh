@@ -1,6 +1,18 @@
 /**
  * @file
  * @brief Defines the proton ionization interaction model using tabulated data.
+ * @details This file implements the physics of proton ionization in water, which is one of the
+ * most important interactions for proton therapy simulations. It uses a "condensed history"
+ * approach, where two distinct types of interactions are modeled:
+ * 1.  **Continuous Effects**: Small, frequent energy losses and changes in direction are grouped
+ *     together and applied continuously along the particle's step using the Continuous Slowing
+ *     Down Approximation (CSDA) with energy straggling and Multiple Coulomb Scattering.
+ * 2.  **Discrete Effects**: Rare, high-energy-transfer events (hard collisions) that produce
+ *     secondary electrons (called delta electrons) are simulated individually.
+ *
+ * To maximize performance, especially on GPUs, this model relies on pre-calculated lookup tables
+ * for physical quantities like cross-sections, stopping power, and particle ranges. This avoids
+ * complex calculations during the simulation runtime.
  */
 #ifndef MQI_P_IONIZATION_HPP
 #define MQI_P_IONIZATION_HPP
@@ -10,8 +22,17 @@
 namespace mqi
 {
 
-/// @brief Lookup table for proton ionization cross-sections in water (mm^2/g).
-/// @details Data from Geant4 TestEm0. Ei = 0.1 MeV, Ef = 299.6 MeV, dE = 0.5 MeV, Te_cut = 0.1 mm (85.1138 keV).
+/// \brief Lookup table for proton ionization cross-sections in water (cm^2/g).
+/// \details This table stores the total cross-section for producing a delta electron with energy
+/// above a certain production threshold (`T_cut`). The cross-section represents the probability
+/// of this interaction occurring per unit path length.
+/// The `CUDA_CONSTANT` keyword tells the CUDA compiler to place this table in a special, read-only
+/// area of GPU memory that is cached and optimized for fast access when all threads read the same address.
+///
+/// Data source: Geant4 TestEm0.
+/// - Proton kinetic energy range: Ei = 0.1 MeV to Ef = 299.6 MeV
+/// - Table energy step: dE = 0.5 MeV
+/// - Delta electron production cut: Te_cut = 0.1 mm water-equivalent range (corresponds to 85.1138 keV).
 CUDA_CONSTANT const float cs_p_ion_table[600] = {
     0,       0,       0,       0,       0,       0,       0,       0,       0,       0,
     0,       0,       0,       0,       0,       0,       0,       0,       0,       0,
@@ -74,8 +95,13 @@ CUDA_CONSTANT const float cs_p_ion_table[600] = {
     187.185, 187.025, 186.864, 186.705, 186.545, 186.386, 186.228, 186.07,  185.913, 185.756,
     185.599, 185.443, 185.288, 185.133, 184.978, 184.824, 184.67,  184.517, 184.364, 184.211
 };
-/// @brief Lookup table for restricted mass stopping power of protons in water (MeV cm^2/g).
-/// @details Data from Geant4 (I=75 eV).
+/// \brief Lookup table for restricted mass stopping power of protons in water (MeV cm^2/g).
+/// \details Stopping power (-dE/dx) is the average energy lost by a particle per unit path length.
+/// "Restricted" means it only includes energy losses up to the delta electron production threshold;
+/// larger energy transfers are handled as discrete interactions. This table is used to calculate
+/// the continuous energy loss along a particle's step.
+///
+/// Data source: Geant4 physics tables (I-value for water = 75 eV).
 CUDA_CONSTANT const float restricted_stopping_power_table[600] = {
     96.14890, 37.78070, 25.01300, 19.19030, 15.72410, 13.29680, 11.59950, 10.30940, 9.32706,
     8.52858,  7.87007,  7.30757,  6.82805,  6.41238,  6.04993,  5.73076,  5.44499,  5.18804,
@@ -146,8 +172,12 @@ CUDA_CONSTANT const float restricted_stopping_power_table[600] = {
     0.31787,  0.31755,  0.31723,  0.31691,  0.31660,  0.31628
 };
 
-/// @brief Lookup table for proton range in water (mm).
-/// @details Data from Geant4 (I=75 eV).
+/// \brief Lookup table for proton range in water (mm).
+/// \details The CSDA range is the total path length a particle of a given energy travels before
+/// it stops. This table is used to efficiently calculate the energy remaining after traveling a
+/// certain distance, which is much faster than integrating the stopping power along the step.
+///
+/// Data source: Geant4 physics tables (I-value for water = 75 eV).
 CUDA_CONSTANT const float range_steps[600] = {
     0.001391,   0.010586,   0.027285,   0.050344,   0.079284,   0.113983,   0.154354,   0.200174,
     0.251242,   0.307367,   0.368453,   0.434431,   0.505264,   0.580871,   0.661183,   0.746137,
@@ -281,13 +311,16 @@ public:
     cross_section(const relativistic_quantities<R>& rel, const material_t<R>& mat) {
         R cs = 0;
         if (rel.Ek >= Ei && rel.Ek <= Ef) {
+            // Find table indices for linear interpolation
             uint16_t idx0 = uint16_t((rel.Ek - Ei) / this->E_step);
             uint16_t idx1 = idx0 + 1;
             R        x0   = this->Ei + idx0 * this->E_step;
             R        x1   = x0 + this->E_step;
+            // Linearly interpolate to find the cross-section at the particle's energy
             cs            = mqi::intpl1d<R>(rel.Ek, x0, x1, cs_table[idx0], cs_table[idx1]);
         }
-        cs *= mat.rho_mass;
+        // Convert from mm^2/g to cm^2/g, then multiply by density (g/cm^3) to get cm^-1
+        cs *= 0.01 * mat.rho_mass;
         return cs;
     }
 
@@ -309,33 +342,38 @@ public:
             R        x1   = x0 + this->E_step;
             pw            = mqi::intpl1d<R>(rel.Ek, x0, x1, pw_table[idx0], pw_table[idx1]);
         } else if (rel.Ek < Ei && rel.Ek > 0) {
-            pw = pw_table[0];
+            pw = pw_table[0];   // For energies below the table, use the first value.
             assert(pw >= 0);
         }
-        return -1.0 * pw;
+        // Return dE/dx in MeV/cm (pw is in MeV*cm^2/g, rho_mass is in g/cm^3)
+        return -1.0 * pw * mat.rho_mass;
     }
 
     /**
-     * @brief Samples the kinetic energy of a delta electron.
-     * @param[in] Te_max The maximum transferable energy to an electron.
-     * @param[in,out] rng A pointer to the random number generator.
+     * @brief Samples the kinetic energy of a delta electron using inverse transform sampling.
+     * @param[in] Te_max The maximum transferable energy to an electron in a single collision.
+     * @param[in,out] rng A pointer to the random number generator state.
      * @return The sampled kinetic energy of the delta electron.
      */
     CUDA_HOST_DEVICE
     inline R
     sample_delta_energy(const R Te_max, const mqi_rng* rng) {
         R eta = mqi_uniform<R>(rng);
+        // Inverse transform sampling from the 1/T^2 differential cross-section.
         return Te_max * this->T_cut / ((1.0 - eta) * Te_max + eta * this->T_cut);
     }
 
     /**
-     * @brief Calculates the energy loss over a given step length.
+     * @brief Calculates the energy loss over a given step length using a range-based approach.
      * @param[in] rel Relativistic quantities of the proton.
-     * @param[in,out] mat The material.
-     * @param[in] step_length The physical step length.
-     * @param[in,out] rng A pointer to the random number generator.
-     * @return The total energy loss (a positive value).
-     * @details This function uses a CSDA approach based on the range-energy tables, with an added Gaussian-distributed energy straggling component.
+     * @param[in,out] mat The material properties.
+     * @param[in] step_length The physical step length (in mm).
+     * @param[in,out] rng A pointer to the random number generator state.
+     * @return The total energy loss (a positive value in MeV).
+     * @details This function uses a CSDA approach based on the range-energy tables. It converts the
+     * physical step length into a water-equivalent length, calculates the particle's residual range,
+     * finds the new energy corresponding to that range, and then adds a Gaussian-distributed
+     * energy straggling component to model the statistical nature of energy loss.
      */
     CUDA_HOST_DEVICE
     virtual inline R
@@ -343,74 +381,35 @@ public:
                 material_t<R>&                    mat,
                 const R                           step_length,
                 mqi_rng*                          rng) {
-        ///< n is left index of energy & range steps table
-        R length_in_water = step_length * mat.stopping_power_ratio(rel.Ek) * mat.rho_mass / this->units.water_density;
-        //R length_in_water = step_length * 1 * mat.rho_mass / this->units.water_density;
+        // Convert physical step length to water-equivalent path length
+        R length_in_water = step_length * mat.stopping_power_ratio(rel.Ek) * mat.rho_mass /
+                            this->units.water_density;
+
+        // Find current range in water from the table
         uint16_t n  = uint16_t((rel.Ek - this->Ei) / this->E_step);
         R        x0 = this->Ei + n * this->E_step;
         R        x1 = x0 + this->E_step;
         if (x0 > rel.Ek) n -= 1;
         if (x1 < rel.Ek) n += 1;
-
         R r = mqi::intpl1d(rel.Ek, x0, x1, r_steps[n], r_steps[n + 1]);
-        if (r < length_in_water) return rel.Ek;   //< maximum energy loss
-        r -= length_in_water;                     //< update residual range
-        ///< find new 'n' for new energy ranges for interpolation
+
+        if (r < length_in_water) return rel.Ek;   // If step is longer than range, particle stops.
+        r -= length_in_water;                     // Calculate residual range.
+
+        // Find the energy corresponding to the residual range
         do {
             if (r >= r_steps[n]) break;
         } while (--n > 0);
-        x0        = this->Ei + n * this->E_step;
-        x1        = x0 + this->E_step;
-        R dE_mean = rel.Ek - mqi::intpl1d(r, r_steps[n], r_steps[n + 1], x0, x1);
-        R dE_var  = this->energy_straggling(rel, mat, length_in_water);
-        R ret     = mqi::mqi_normal(rng, dE_mean, mqi::mqi_sqrt(dE_var));
+        x0 = this->Ei + n * this->E_step;
+        x1 = x0 + this->E_step;
+        R E_new = mqi::intpl1d(r, r_steps[n], r_steps[n + 1], x0, x1);
+        R dE_mean = rel.Ek - E_new;
+
+        // Add energy straggling (fluctuations around the mean energy loss)
+        R dE_var = this->energy_straggling(rel, mat, length_in_water);
+        R ret    = mqi::mqi_normal(rng, dE_mean, mqi::mqi_sqrt(dE_var));
         if (ret < 0) ret *= -1.0;
         return ret;
-    }
-
-    /**
-     * @brief Calculates the variance of the energy straggling.
-     * @param[in] rel Relativistic quantities of the proton.
-     * @param[in] mat The material.
-     * @param[in] step_length The physical step length in water-equivalent path length.
-     * @return The energy straggling variance.
-     */
-    CUDA_HOST_DEVICE
-    inline R
-    energy_straggling(const relativistic_quantities<R>& rel,
-                      const material_t<R>&              mat,
-                      const R                           step_length) {
-        R Te   = (rel.Te_max >= 0.08511) ? 0.08511 : rel.Te_max;
-        R O_sq = mat.dedx_term0() * mat.rho_mass / this->units.water_density * step_length;
-        O_sq *= Te / rel.beta_sq * (1.0 - 0.5 * rel.beta_sq);
-        return O_sq;
-    }
-
-    /**
-     * @brief Calculates the radiation length of a material based on its density.
-     * @param[in] density The mass density of the material in g/mm^3.
-     * @return The radiation length in mm.
-     * @details This function uses an empirical formula from Fippel and Soukup (2004).
-     */
-    CUDA_HOST_DEVICE
-    virtual R
-    radiation_length(R density) {
-        R radiation_length_mat = 0.0;
-        R f                    = 0.0;
-        density *= 1000.0;
-
-        //// Fippel
-        if (density <= 0.26) {
-            f = 0.9857 + 0.0085 * density;
-        } else if (density > 0.26 && density <= 0.9) {
-            f = 1.0446 - 0.2180 * density;
-        } else if (density > 0.9) {
-            f = 1.19 + 0.44 * mqi::mqi_ln(density - 0.44);
-        }
-
-        radiation_length_mat =
-          (this->units.water_density * this->units.radiation_length_water) / (density * 0.001 * f);
-        return radiation_length_mat;
     }
 
     /**
@@ -430,32 +429,30 @@ public:
                const R           len,
                material_t<R>&    mat) {
         mqi::relativistic_quantities<R> rel(trk.vtx0.ke, this->units.Mp);
-        ///< CSDA energy loss
-#ifdef DEBUG
-        printf("len %f rsp %f density %f water density %f length in water %f mm\n",
-               len,
-               mat.stopping_power_ratio(rel.Ek),
-               mat.rho_mass,
-               this->units.water_density,
-               len * mat.stopping_power_ratio(rel.Ek) * mat.rho_mass / this->units.water_density);
-#endif
+
+        // 1. Calculate continuous energy loss over the step length
         R dE = this->energy_loss(rel, mat, len, rng);
-        ///< Update track (KE & POS & DIR)
+
+        // 2. Check if the particle stops. If so, adjust the step length and energy loss.
         R r = 1.0;
         if (dE >= trk.vtx0.ke) {
-            r = trk.vtx0.ke / dE;
+            r = trk.vtx0.ke / dE;   // scale factor for the step
             trk.stop();
         }
         assert(dE * r >= 0);
-        ///< Multiple Coulomb SCattering (MSC)
+
+        // 3. Calculate Multiple Coulomb Scattering (MCS) angle
         R P                    = rel.momentum();
         R radiation_length_mat = this->radiation_length(mat.rho_mass);
 
+        // Highland's formula for the variance of the projected scattering angle distribution
         R th_sq = ((this->Es / P) * (this->Es / P) / rel.beta_sq) * len / radiation_length_mat;
-        R th    = mqi::mqi_sqrt(th_sq);
-        th      = mqi::mqi_normal<R>(rng, 0, mqi::mqi_sqrt(2.0f) * th);
-        if (th < 0) th *= -1.0;
+        // Sample the polar scattering angle from a Gaussian distribution
+        R th = mqi::mqi_normal<R>(rng, 0, mqi::mqi_sqrt(th_sq));
+        // Sample the azimuthal angle uniformly
         R phi = 2.0 * M_PI * mqi::mqi_uniform<R>(rng);
+
+// 4. Update the track's state
 #if !defined(__CUDACC__)
         if (std::isnan(th) || std::isnan(phi) || std::isinf(th) || std::isinf(phi))
             printf("p ion1 dE %f ke %f Es %f P %f len %f th_sq %f th %f phi %f\n",
@@ -487,7 +484,7 @@ public:
         assert(mqi::mqi_abs(trk.vtx0.dir.dot(trk.vtx1.dir) /
                               (trk.vtx0.dir.norm() * trk.vtx1.dir.norm()) -
                             mqi::mqi_cos(th)) < 1e-3);
-        trk.deposit(dE * r);
+        trk.deposit(dE * r);   // Record the energy deposited in this step
         trk.update_post_vertex_position(r * len);
         trk.update_post_vertex_energy(dE * r);
     }
@@ -496,11 +493,15 @@ public:
      * @brief Simulates discrete effects at the end of a step (delta electron production).
      * @param[in,out] trk The particle track to be updated.
      * @param[in,out] stk The secondary particle stack.
-     * @param[in,out] rng A pointer to the random number generator.
-     * @param[in] len The step length.
-     * @param[in,out] mat The material.
-     * @param[in] score_local_deposit Flag indicating if local energy deposit should be scored.
-     * @details This method samples a delta electron and either adds its energy to the local deposit or creates a new secondary particle on the stack.
+     * @param[in,out] rng A pointer to the random number generator state.
+     * @param[in] len The step length (not used in this method).
+     * @param[in,out] mat The material (not used in this method).
+     * @param[in] score_local_deposit Flag indicating if local energy deposit should be scored (not used).
+     * @details This method simulates a "post-step" discrete interaction. It samples the energy of a
+     * secondary delta electron produced by the proton. If the electron's energy is below a tracking
+     * threshold (a common optimization), its energy is considered deposited locally at the interaction
+     * site. If it is above the threshold, a new electron track would be created and added to the
+     * secondary stack (`stk`) for explicit simulation (currently disabled by `#ifdef`).
      */
     CUDA_HOST_DEVICE
     virtual void
@@ -510,17 +511,14 @@ public:
               const R           len,
               material_t<R>&    mat,
               bool              score_local_deposit) {
-        //This method in p_ion should get called after CSDA
         mqi::relativistic_quantities<R> rel(trk.vtx1.ke, this->units.Mp);
 
-        ///< Delta generation (local absorb)
-        R Te, n;
+        // Sample the kinetic energy of a delta electron
+        R Te;
 
-        /// Sampling and Rejection from Geant4
+        // Sampling and Rejection from Geant4 to get the correct energy distribution
         while (true) {
-            n  = mqi::mqi_uniform<R>(rng);
-            Te = this->T_cut * rel.Te_max;
-            Te /= ((1.0 - n) * rel.Te_max + n * this->T_cut);
+            Te = sample_delta_energy(rel.Te_max, rng);
             if (mqi::mqi_uniform<R>(rng) <
                 1.0 - rel.beta_sq * Te / rel.Te_max + Te * Te / (2.0 * rel.Et_sq)) {
                 break;
@@ -528,9 +526,10 @@ public:
         }
         assert(Te >= 0);
 
-        ///< Te is assumed to be absorbed locally
-        /// Remove in release
+        // The energy of the created delta electron is assumed to be absorbed locally.
+        // The primary proton loses this amount of energy.
 #ifdef __PHYSICS_DEBUG__
+        // A full simulation might create a new electron track here instead.
         track_t<R> daughter(trk);
         daughter.dE       = Te;
         daughter.primary  = false;
@@ -557,16 +556,22 @@ public:
      * @brief Performs the final step for a track that deposits the remainder of its energy.
      * @param[in,out] trk The particle track to be updated.
      * @param[in,out] mat The material.
-     * @details This function calculates the remaining range of the particle and updates its final position.
+     * @details This function is called when a particle is about to stop. It calculates the
+     * remaining CSDA range of the particle and updates its final position accordingly, ensuring
+     * energy conservation.
      */
     CUDA_HOST_DEVICE
     virtual void
     last_step(track_t<R>& trk, material_t<R>& mat) {
         mqi::relativistic_quantities<R> rel(trk.vtx0.ke, this->units.Mp);
         R                               length_in_water = 0;
-        if (trk.dE > 0) length_in_water = -trk.dE / this->dEdx(rel, mat);
-        R step_length = length_in_water * this->units.water_density / (mat.stopping_power_ratio(trk.vtx0.ke) * mat.rho_mass);
-        //R step_length = length_in_water * this->units.water_density / (1 * mat.rho_mass);
+        if (trk.dE > 0) {
+            // Estimate remaining path length based on remaining energy and stopping power
+            length_in_water = -trk.dE / this->dEdx(rel, mat);
+        }
+        // Convert water-equivalent length back to physical length in the current material
+        R step_length = length_in_water * this->units.water_density /
+                        (mat.stopping_power_ratio(trk.vtx0.ke) * mat.rho_mass);
         trk.update_post_vertex_position(step_length);
     }
 };

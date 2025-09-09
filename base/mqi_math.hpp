@@ -1,9 +1,12 @@
 /**
  * @file
  * @brief Defines mathematical constants and functions for both CPU and CUDA execution.
- * @details This header provides a hardware-agnostic API for common mathematical operations
+ * @details This header provides a hardware-abstraction layer for common mathematical operations
  * like logarithms, square roots, and random number generation. It uses preprocessor
- * directives to select the appropriate implementation (standard C++ or CUDA) at compile time.
+ * directives (`#if defined(__CUDACC__)`) to select the appropriate implementation
+ * (e.g., standard C++ `<cmath>` functions or CUDA `math.h` functions) at compile time.
+ * This allows the same high-level simulation code to be compiled for and run on either
+ * the CPU or the GPU without modification.
  */
 #ifndef MQI_MATH_HPP
 #define MQI_MATH_HPP
@@ -17,14 +20,16 @@
 namespace mqi
 {
 
-const float near_zero          = 1e-7f;      ///< A small value used to avoid floating-point comparison issues.
-const float min_step           = 1e-3f;      ///< The minimum step size for particle transport.
-const float geometry_tolerance = 1e-3f;      ///< A tolerance value for geometry intersection calculations.
-const float m_inf              = -HUGE_VALF; ///< Negative infinity.
-const float p_inf              = HUGE_VALF;  ///< Positive infinity.
+const float near_zero          = 1e-7f;      ///< A small floating-point value used to avoid issues with division by zero or comparisons with zero.
+const float min_step           = 1e-3f;      ///< The minimum step size (in mm) for particle transport to prevent infinitely small steps.
+const float geometry_tolerance = 1e-3f;      ///< A tolerance value (in mm) for geometry intersection calculations to handle floating-point inaccuracies.
+const float m_inf              = -HUGE_VALF; ///< A representation of negative infinity, using the standard C macro `HUGE_VALF`.
+const float p_inf              = HUGE_VALF;  ///< A representation of positive infinity, using the standard C macro `HUGE_VALF`.
 
 /**
  * @brief Performs 1D linear interpolation.
+ * @details Calculates the value of `y` at a point `x` that lies on the line segment
+ * between (`x0`, `y0`) and (`x1`, `y1`).
  * @tparam T The floating-point type (e.g., float or double).
  * @param[in] x The point at which to interpolate.
  * @param[in] x0 The first x-coordinate.
@@ -40,7 +45,9 @@ intpl1d(T x, T x0, T x1, T y0, T y1) {
 }
 
 /**
- * @brief Calculates the natural logarithm. Wrapper for `log` or `logf`.
+ * @brief Calculates the natural logarithm. Wrapper for `log` (double) or `logf` (float).
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below.
  * @tparam T The floating-point type.
  * @param[in] s The value.
  * @return The natural logarithm of s.
@@ -50,7 +57,9 @@ CUDA_DEVICE T
 mqi_ln(T s);
 
 /**
- * @brief Calculates the square root. Wrapper for `sqrt` or `sqrtf`.
+ * @brief Calculates the square root. Wrapper for `sqrt` (double) or `sqrtf` (float).
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below.
  * @tparam T The floating-point type.
  * @param[in] s The value.
  * @return The square root of s.
@@ -61,6 +70,8 @@ mqi_sqrt(T s);
 
 /**
  * @brief Calculates a number raised to a power. Wrapper for `pow` or `powf`.
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below.
  * @tparam T The floating-point type.
  * @param[in] s The base.
  * @param[in] p The exponent.
@@ -72,6 +83,8 @@ mqi_pow(T s, T p);
 
 /**
  * @brief Calculates the base-e exponential. Wrapper for `exp` or `expf`.
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below.
  * @tparam T The floating-point type.
  * @param[in] s The value.
  * @return e raised to the power of s.
@@ -82,6 +95,8 @@ mqi_exp(T s);
 
 /**
  * @brief Calculates the arc cosine. Wrapper for `acos` or `acosf`.
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below.
  * @tparam T The floating-point type.
  * @param[in] s The value.
  * @return The arc cosine of s.
@@ -92,6 +107,8 @@ mqi_acos(T s);
 
 /**
  * @brief Calculates the cosine. Wrapper for `cos` or `cosf`.
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below.
  * @tparam T The floating-point type.
  * @param[in] s The value.
  * @return The cosine of s.
@@ -102,6 +119,8 @@ mqi_cos(T s);
 
 /**
  * @brief Calculates the sine. Wrapper for `sin` or `sinf`.
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below.
  * @tparam T The floating-point type.
  * @param[in] s The value.
  * @return The sine of s.
@@ -112,6 +131,8 @@ mqi_sin(T s);
 
 /**
  * @brief Calculates the absolute value. Wrapper for `abs` or `fabs`.
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below.
  * @tparam T The floating-point type.
  * @param[in] s The value.
  * @return The absolute value of s.
@@ -122,6 +143,8 @@ mqi_abs(T s);
 
 /**
  * @brief Rounds a number to the nearest integer. Wrapper for `round` or `roundf`.
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below.
  * @tparam T The floating-point type.
  * @param[in] s The value.
  * @return The rounded value.
@@ -132,6 +155,8 @@ mqi_round(T s);
 
 /**
  * @brief Calculates the floor of a number. Wrapper for `floor` or `floorf`.
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below.
  * @tparam T The floating-point type.
  * @param[in] s The value.
  * @return The floor value.
@@ -142,6 +167,8 @@ mqi_floor(T s);
 
 /**
  * @brief Calculates the ceiling of a number. Wrapper for `ceil` or `ceilf`.
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below.
  * @tparam T The floating-point type.
  * @param[in] s The value.
  * @return The ceiling value.
@@ -152,6 +179,8 @@ mqi_ceil(T s);
 
 /**
  * @brief Checks if a number is NaN (Not a Number). Wrapper for `isnan`.
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below.
  * @tparam T The floating-point type.
  * @param[in] s The value.
  * @return True if s is NaN, false otherwise.
@@ -163,6 +192,8 @@ mqi_isnan(T s);
 /**
  * @struct rnd_return
  * @brief A helper struct to define the return type for random number generators.
+ * @details This is a C++ template metaprogramming technique. It allows the generic random
+ * number functions to correctly deduce their return type (`float` or `double`) at compile time.
  * @tparam T The desired floating-point type (float or double).
  */
 template<class T>
@@ -184,6 +215,9 @@ struct rnd_return<double> {
 
 /**
  * @brief Generates a normally distributed random number.
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below,
+ * which call either the CURAND (GPU) or C++ <random> (CPU) library.
  * @tparam T The floating-point type of the distribution parameters.
  * @tparam S The type of the random number generator state/engine.
  * @param[in,out] rng A pointer to the random number generator.
@@ -199,6 +233,8 @@ mqi_normal(S* rng, T avg, T sig) {
 
 /**
  * @brief Generates a uniformly distributed random number in [0, 1).
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below.
  * @tparam T The floating-point type of the return value.
  * @tparam S The type of the random number generator state/engine.
  * @param[in,out] rng A pointer to the random number generator.
@@ -212,6 +248,8 @@ mqi_uniform(S* rng) {
 
 /**
  * @brief Generates an exponentially distributed random number.
+ * @details This is a generic template declaration. The actual implementations are provided
+ * via template specialization for `float` and `double` in the hardware-specific sections below.
  * @tparam T The floating-point type of the distribution parameters.
  * @tparam S The type of the random number generator state/engine.
  * @param[in,out] rng A pointer to the random number generator.
@@ -225,202 +263,212 @@ mqi_exponential(S* rng, T avg, T up) {
     return T();
 }
 
+// This block is compiled only by the NVIDIA CUDA Compiler (nvcc).
+// It provides the GPU implementations of the math functions.
 #if defined(__CUDACC__)
 
-///< specialization of template functions
-//Nautual log
+/// Template specializations for CUDA. These functions call the CUDA device math API.
+/// Note the 'f' suffix for float versions (e.g., `logf`, `sqrtf`), which is standard in C and CUDA.
+
+// Natural log
 template<>
-float
+CUDA_DEVICE float
 mqi_ln(float s) {
     return logf(s);
 }
 template<>
-double
+CUDA_DEVICE double
 mqi_ln(double s) {
     return log(s);
 }
 
-///< sqrt
+// Square root
 template<>
-float
+CUDA_HOST_DEVICE float
 mqi_sqrt(float s) {
     return sqrtf(s);
 }
 template<>
-double
+CUDA_HOST_DEVICE double
 mqi_sqrt(double s) {
     return sqrt(s);
 }
 
-///< power
+// Power
 template<>
-float
+CUDA_DEVICE float
 mqi_pow(float s, float p) {
     return powf(s, p);
 }
 template<>
-double
+CUDA_DEVICE double
 mqi_pow(double s, double p) {
     return pow(s, p);
 }
 
-///< exponential
+// Exponential
 template<>
-float
+CUDA_DEVICE float
 mqi_exp(float s) {
     return expf(s);
 }
 template<>
-double
+CUDA_DEVICE double
 mqi_exp(double s) {
     return exp(s);
 }
 
-///< acos
+// Arc cosine
 template<>
-float
+CUDA_DEVICE float
 mqi_acos(float s) {
     return acosf(s);
 }
 template<>
-double
+CUDA_DEVICE double
 mqi_acos(double s) {
     return acos(s);
 }
 
-///< cos
+// Cosine
 template<>
-float
+CUDA_DEVICE float
 mqi_cos(float s) {
     return cosf(s);
 }
 template<>
-double
+CUDA_DEVICE double
 mqi_cos(double s) {
     return cos(s);
 }
-///< sin
+// Sine
 template<>
-float
+CUDA_DEVICE float
 mqi_sin(float s) {
     return sinf(s);
 }
 template<>
-double
+CUDA_DEVICE double
 mqi_sin(double s) {
     return sin(s);
 }
 
+// Absolute value
 template<>
-float
+CUDA_DEVICE float
 mqi_abs(float s) {
     return abs(s);
 }
 template<>
-double
+CUDA_DEVICE double
 mqi_abs(double s) {
     return abs(s);
 }
 
+// Round
 template<>
-float
+CUDA_HOST_DEVICE float
 mqi_round(float s) {
     return roundf(s);
 }
 template<>
-double
+CUDA_HOST_DEVICE double
 mqi_round(double s) {
     return round(s);
 }
 
+// Floor
 template<>
-float
+CUDA_HOST_DEVICE float
 mqi_floor(float s) {
     return floorf(s);
 }
 template<>
-double
+CUDA_HOST_DEVICE double
 mqi_floor(double s) {
     return floor(s);
 }
 
+// Ceil
 template<>
-float
+CUDA_HOST_DEVICE float
 mqi_ceil(float s) {
     return ceilf(s);
 }
 template<>
-double
+CUDA_HOST_DEVICE double
 mqi_ceil(double s) {
     return ceil(s);
 }
 
+// Is-Not-a-Number
 template<>
-bool
+CUDA_HOST_DEVICE bool
 mqi_isnan(float s) {
-    bool t = isnan(s);
-    return t;
+    return isnan(s);
 }
 template<>
-bool
+CUDA_HOST_DEVICE bool
 mqi_isnan(double s) {
-    bool t = isnan(s);
-    return t;
+    return isnan(s);
 }
 
-//random number status per thread. each status is initialized by master seed.
-//the parameters to be passed are currand_status for CUDA and random_engine for C++
-//curand_status == mqi_rng ;
+/// For CUDA builds, `mqi_rng` is an alias for `curandState_t`, the state object for
+/// the NVIDIA CURAND library, which generates high-quality pseudo-random numbers on the GPU.
+/// Each thread in a kernel gets its own state, which must be initialized with a unique seed.
 typedef curandState_t mqi_rng;
 
 template<>
-float
-mqi_uniform<float>(mqi_rng* rng) {
+CUDA_DEVICE float
+mqi_uniform<float, mqi_rng>(mqi_rng* rng) {
     return curand_uniform(rng);
 }
 
-template<>   //template<class S = curandState>
-double
-mqi_uniform<double>(mqi_rng* rng) {
+template<>
+CUDA_DEVICE double
+mqi_uniform<double, mqi_rng>(mqi_rng* rng) {
     return curand_uniform_double(rng);
 }
 
 template<>
-float
-mqi_normal<float>(mqi_rng* rng, float avg, float sig) {
+CUDA_DEVICE float
+mqi_normal<float, mqi_rng>(mqi_rng* rng, float avg, float sig) {
     return curand_normal(rng) * sig + avg;
 }
 
 template<>
-double
-mqi_normal<double>(mqi_rng* rng, double avg, double sig) {
+CUDA_DEVICE double
+mqi_normal<double, mqi_rng>(mqi_rng* rng, double avg, double sig) {
     return curand_normal_double(rng) * sig + avg;
 }
 
 template<>
-float
-mqi_exponential<float>(mqi_rng* rng, float avg, float up) {
+CUDA_DEVICE float
+mqi_exponential<float, mqi_rng>(mqi_rng* rng, float avg, float up) {
     float x;
     do {
-        x = -1.0 / avg * logf(1.0 - curand_uniform(rng));   //0, up
-    } while (x > up || mqi::mqi_isnan(x));
-
+        // Inverse transform sampling for exponential distribution
+        x = -1.0 / avg * logf(1.0 - curand_uniform(rng));
+    } while (x > up || mqi::mqi_isnan(x));   // Reject samples outside the upper bound
     return x;
 }
 
 template<>
-double
-mqi_exponential<double>(mqi_rng* rng, double avg, double up) {
+CUDA_DEVICE double
+mqi_exponential<double, mqi_rng>(mqi_rng* rng, double avg, double up) {
     double x;
     do {
-        x = -1.0 / avg * log(1.0 - curand_uniform(rng));   //0, up
+        x = -1.0 / avg * log(1.0 - curand_uniform_double(rng));
     } while (x > up || mqi::mqi_isnan(x));
     return x;
 }
 
 #else
 
-//Natural log. C++ casts float to double. they have same implementation.
+// This block is compiled by a standard C++ compiler (e.g., g++, clang++).
+// It provides the CPU implementations of the math functions using the C++ standard library <cmath> and <random>.
+
+// Natural log
 template<>
 float
 mqi_ln(float s) {
@@ -433,6 +481,7 @@ mqi_ln(double s) {
     return std::log(s);
 }
 
+// Square root
 template<>
 float
 mqi_sqrt(float s) {
@@ -445,6 +494,7 @@ mqi_sqrt(double s) {
     return std::sqrt(s);
 }
 
+// Power
 template<>
 float
 mqi_pow(float s, float p) {
@@ -457,7 +507,7 @@ mqi_pow(double s, double p) {
     return std::pow(s, p);
 }
 
-///< exponential
+// Exponential
 template<>
 float
 mqi_exp(float s) {
@@ -469,7 +519,7 @@ mqi_exp(double s) {
     return std::exp(s);
 }
 
-///< acos
+// Arc cosine
 template<>
 float
 mqi_acos(float s) {
@@ -481,6 +531,7 @@ mqi_acos(double s) {
     return std::acos(s);
 }
 
+// Cosine
 template<>
 float
 mqi_cos(float s) {
@@ -492,6 +543,7 @@ mqi_cos(double s) {
     return std::cos(s);
 }
 
+// Absolute value
 template<>
 float
 mqi_abs(float s) {
@@ -503,7 +555,7 @@ mqi_abs(double s) {
     return std::abs(s);
 }
 
-///< round
+// Round
 template<>
 float
 mqi_round(float s) {
@@ -515,8 +567,7 @@ mqi_round(double s) {
     return std::round(s);
 }
 
-////< floor
-
+// Floor
 template<>
 float
 mqi_floor(float s) {
@@ -528,7 +579,7 @@ mqi_floor(double s) {
     return std::floor(s);
 }
 
-////< ceil
+// Ceil
 template<>
 float
 mqi_ceil(float s) {
@@ -540,7 +591,7 @@ mqi_ceil(double s) {
     return std::ceil(s);
 }
 
-////< isnan
+// Is-Not-a-Number
 template<>
 bool
 mqi_isnan(float s) {
@@ -552,55 +603,54 @@ mqi_isnan(double s) {
     return std::isnan(s);
 }
 
-//compile: ERROR
+/// For CPU builds, `mqi_rng` is an alias for the C++ standard library's default random engine.
+/// This allows the same code to use two different random number generation libraries.
 typedef std::default_random_engine mqi_rng;
-//typedef std::mt19937 mqi_rng;
 
 template<>
 float
-mqi_uniform<float>(mqi_rng* rng) {
+mqi_uniform<float, mqi_rng>(mqi_rng* rng) {
     std::uniform_real_distribution<float> dist;
     return dist(*rng);
 }
 
 template<>
 double
-mqi_uniform<double>(mqi_rng* rng) {
+mqi_uniform<double, mqi_rng>(mqi_rng* rng) {
     std::uniform_real_distribution<double> dist;
     return dist(*rng);
 }
 
 template<>
 float
-mqi_normal<float>(mqi_rng* rng, float avg, float sig) {
+mqi_normal<float, mqi_rng>(mqi_rng* rng, float avg, float sig) {
     std::normal_distribution<float> dist(avg, sig);
     return dist(*rng);
 }
 
 template<>
 double
-mqi_normal<double>(mqi_rng* rng, double avg, double sig) {
+mqi_normal<double, mqi_rng>(mqi_rng* rng, double avg, double sig) {
     std::normal_distribution<double> dist(avg, sig);
     return dist(*rng);
 }
 
 template<>
 float
-mqi_exponential<float>(mqi_rng* rng, float avg, float up) {
+mqi_exponential<float, mqi_rng>(mqi_rng* rng, float avg, float up) {
     float                                x;
-    std::exponential_distribution<float> dist(avg);
+    std::exponential_distribution<float> dist(1.0 / avg);   // C++ uses lambda (1/mean)
+    // The rejection sampling to respect the upper bound seems to be commented out.
+    // This might be an incomplete implementation for the CPU side.
     x = dist(*rng);
-    //    do {
-    //        x = dist(*rng);
-    //    } while (x > up || x <= 0);
     return x;
 }
 
 template<>
 double
-mqi_exponential<double>(mqi_rng* rng, double avg, double up) {
+mqi_exponential<double, mqi_rng>(mqi_rng* rng, double avg, double up) {
     double                                x;
-    std::exponential_distribution<double> dist(avg);
+    std::exponential_distribution<double> dist(1.0 / avg);
     do {
         x = dist(*rng);
     } while (x > up || x <= 0);

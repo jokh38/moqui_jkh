@@ -1,6 +1,5 @@
-/// \file
-/// \brief Defines classes for file handling, including reading mask files and parsing configuration files.
-
+/// \file mqi_file_handler.hpp
+/// \brief Defines classes for file handling, such as reading mask files and parsing configuration files.
 #ifndef MQI_FILE_HANDLER_HPP
 #define MQI_FILE_HANDLER_HPP
 
@@ -14,77 +13,83 @@ namespace mqi
 {
 
 /// \class mask_reader
-/// \brief A class for reading and processing 3D mask files in MHA format.
+/// \brief A class for reading and processing 3D mask files in the MetaImage (.mha) format.
 ///
-/// This class provides functionality to read one or more mask files, combine them,
-/// and generate mappings or regions of interest (ROI) based on the mask data.
+/// \details In this context, a "mask" is a 3D grid where each voxel (pixel) is either 0 (inactive) or 1 (active).
+/// It's used to define a specific Region of Interest (ROI) within the larger CT grid,
+/// such as a tumor or a critical organ. This allows the simulation to perform calculations
+/// (like scoring dose) only within that specific region, which can save significant computation time and memory,
+/// especially on the GPU. This class handles reading `.mha` files, combining multiple masks, and
+/// converting them into memory-efficient representations for the simulation engine.
 class mask_reader
 {
 public:
-    ///< A list of filenames for the mask files to be read.
+    /// A list of filenames for the mask files to be read.
     std::vector<std::string> mask_filenames;
-    ///< The dimensions of the corresponding CT grid.
+    /// The dimensions (nx, ny, nz) of the CT grid that this mask corresponds to.
     mqi::vec3<ijk_t> ct_dim;
-    ///< The total size of the CT grid (nx * ny * nz).
+    /// The total number of voxels in the CT grid (nx * ny * nz).
     size_t ct_size;
-    ///< A pointer to the combined mask data.
-    uint8_t* mask_total;
+    /// A pointer to the combined mask data, where each voxel is represented by a `uint8_t`.
+    /// This memory is allocated by `read_mask_files` and must be deallocated by the user or this class's destructor.
+    uint8_t* mask_total = nullptr;
 
     /// \brief Default constructor.
     mask_reader() {
         ;
     }
 
-    /// \brief Constructs a mask_reader with given CT dimensions.
-    /// \param[in] ct_dim The dimensions of the CT grid.
+    /// \brief Constructs a `mask_reader` with given CT dimensions.
+    /// \param[in] ct_dim The dimensions of the corresponding CT grid.
     mask_reader(mqi::vec3<ijk_t> ct_dim) {
         this->ct_dim  = ct_dim;
         this->ct_size = ct_dim.x * ct_dim.y * ct_dim.z;
     }
 
-    /// \brief Constructs a mask_reader with a list of files and CT dimensions.
-    /// \param[in] filelist A vector of mask file paths.
-    /// \param[in] ct_dim The dimensions of the CT grid.
+    /// \brief Constructs a `mask_reader` with a list of files and CT dimensions.
+    /// \param[in] filelist A vector of file paths to the mask files.
+    /// \param[in] ct_dim The dimensions of the corresponding CT grid.
     mask_reader(std::vector<std::string> filelist, mqi::vec3<ijk_t> ct_dim) {
         this->mask_filenames = filelist;
         this->ct_dim         = ct_dim;
         this->ct_size        = ct_dim.x * ct_dim.y * ct_dim.z;
     }
 
-    /// \brief Destructor.
+    /// \brief Destructor. Frees the memory allocated for the combined mask.
     ~mask_reader() {
-        ;
+        if (mask_total != nullptr) {
+            delete[] mask_total;
+        }
     }
 
-    /// \brief Reads a single mask file in MHA format.
-    /// \param[in] filename The path to the MHA file.
-    /// \return A pointer to the mask data as an array of `uint8_t`.
+    /// \brief Reads a single mask file in the MetaImage (.mha) format.
+    ///
+    /// \details This function parses the header of the .mha file to determine the dimensions
+    /// and then reads the binary pixel data into a buffer.
+    /// \param[in] filename The path to the .mha file.
+    /// \return A pointer to the mask data as a dynamically allocated array of `uint8_t`.
+    ///         The caller is responsible for `delete[]`ing this memory.
+    /// \note `CUDA_HOST` indicates this function runs on the CPU.
     CUDA_HOST
     uint8_t*
     read_mha_file(std::string filename) {
         std::string   line;
-        std::ifstream fid(filename, std::ios::ate);
+        std::ifstream fid(filename, std::ios::ate | std::ios::binary);   // Open in binary mode
+        if (!fid.is_open()) {
+            throw std::runtime_error("Cannot open mask file: " + filename);
+        }
         fid.seekg(0);
         std::string delimeter = "=";
         size_t      pos, pos_current, pos_prev, total_size;
         std::string parameter, value;
         uint16_t    nx, ny, nz;
-        uint8_t*    mask;
+        uint8_t*    mask = nullptr;
+        // Parse the MHA header
         while (std::getline(fid, line)) {
             line      = trim_copy(line);
             pos       = line.find(delimeter);
             parameter = trim_copy(line.substr(0, pos));
-            if (strcasecmp(parameter.c_str(), "ObjectType") == 0) {
-            } else if (strcasecmp(parameter.c_str(), "NDims") == 0) {
-            } else if (strcasecmp(parameter.c_str(), "BinaryData") == 0) {
-            } else if (strcasecmp(parameter.c_str(), "BinaryDataByteOrderMSB") == 0) {
-            } else if (strcasecmp(parameter.c_str(), "CompressedData") == 0) {
-            } else if (strcasecmp(parameter.c_str(), "TransformMatrix") == 0) {
-            } else if (strcasecmp(parameter.c_str(), "Offset") == 0) {
-            } else if (strcasecmp(parameter.c_str(), "CenterOfRotation") == 0) {
-            } else if (strcasecmp(parameter.c_str(), "AnatomicalOrientation") == 0) {
-            } else if (strcasecmp(parameter.c_str(), "ElementSpacing") == 0) {
-            } else if (strcasecmp(parameter.c_str(), "DimSize") == 0) {
+            if (strcasecmp(parameter.c_str(), "DimSize") == 0) {
                 value       = trim_copy(line.substr(pos + 1));
                 pos_prev    = 0;
                 pos_current = value.find(" ");
@@ -95,53 +100,66 @@ public:
                 pos_prev    = pos_current + 1;
                 pos_current = value.find(" ", pos_prev);
                 nz          = std::atoi(value.substr(pos_prev, pos_current).c_str());
-            } else if (strcasecmp(parameter.c_str(), "ElementType") == 0) {
-
             } else if (strcasecmp(parameter.c_str(), "ElementDataFile") == 0) {
                 value = trim_copy(line.substr(pos + 1));
                 if (strcasecmp(value.c_str(), "LOCAL") != 0) {
                     throw std::runtime_error("Mask files does not contain data.");
                 }
-                break;   // This break is necessary to read correct number of voxels
+                break;   // Stop parsing after finding the data file entry
             }
         }
         total_size = nx * ny * nz;
         mask       = new uint8_t[total_size];
-        fid.read((char*) (&mask[0]), total_size * sizeof(mask[0]));
+        // Read the binary data block
+        fid.read((char*) (mask), total_size * sizeof(uint8_t));
         fid.close();
         return mask;
     }
 
-    /// \brief Reads and combines multiple mask files.
+    /// \brief Reads and combines multiple mask files into a single mask.
     ///
-    /// This method iterates through the `mask_filenames` list, reads each file,
-    /// and combines them into a single `mask_total` array.
+    /// \details This method iterates through the `mask_filenames` list, reads each file using
+    /// `read_mha_file`, and logically ORs its values into the `mask_total` array.
+    /// This allows for the combination of several ROIs into one.
+    /// It allocates memory for `mask_total` which is freed in the destructor.
     CUDA_HOST
     void
     read_mask_files() {
-        std::string filename;
-        this->mask_total = new uint8_t[this->ct_size];
-        for (int i = 0; i < this->ct_size; i++) {
-            this->mask_total[i] = 0;
-        }
-        uint8_t* mask_temp;
         if (mask_filenames.empty()) {
             throw std::runtime_error("Mask filelist are required for masking scorers.");
         }
-        for (int f = 0; f < mask_filenames.size(); f++) {
-            filename = mask_filenames[f];
+        // Allocate and initialize the total mask buffer.
+        this->mask_total = new uint8_t[this->ct_size];
+        std::memset(this->mask_total, 0, this->ct_size * sizeof(uint8_t));
+
+        uint8_t* mask_temp = nullptr;
+        for (const auto& filename : mask_filenames) {
             printf("Reading maskfile %s\n", filename.c_str());
-            mask_temp = read_mha_file(filename);
-            for (int i = 0; i < this->ct_size; i++) {
-                assert(mask_temp[i] >= 0 && mask_temp[i] <= 1);
-                this->mask_total[i] += mask_temp[i];
+            try {
+                mask_temp = read_mha_file(filename);
+                for (size_t i = 0; i < this->ct_size; i++) {
+                    assert(mask_temp[i] == 0 || mask_temp[i] == 1);
+                    this->mask_total[i] |= mask_temp[i];   // Use logical OR to combine masks
+                }
+                delete[] mask_temp;   // Free the temporary mask buffer
+                mask_temp = nullptr;
+            } catch (...) {
+                if (mask_temp) delete[] mask_temp;
+                throw;   // Re-throw the exception
             }
         }
     }
 
-    /// \brief Creates a mapping from voxel index to scorer index based on a mask.
+    /// \brief Creates a mapping from a full voxel index to a compact scorer index.
+    ///
+    /// \details To save memory and computation, especially on a GPU, we often only want to store
+    /// data for the "active" voxels inside a mask. This function creates an indirection map
+    /// where each active voxel is assigned a new, compact index (0, 1, 2,...). Voxels outside
+    /// the mask are assigned an index of -1 to signify they should be ignored.
+    ///
     /// \param[in] mask A pointer to the mask data.
-    /// \return A pointer to an array where each element is the scorer index or -1 if masked out.
+    /// \return A pointer to a dynamically allocated array where each element is the compact scorer index or -1 if masked out.
+    ///         The caller is responsible for `delete[]`ing this memory.
     CUDA_HOST
     int32_t*
     mask_mapping(uint8_t* mask) {
@@ -158,8 +176,10 @@ public:
         return scorer_idx;
     }
 
-    /// \brief Creates a default identity mapping.
-    /// \return A pointer to an array where each voxel index maps to itself.
+    /// \brief Creates a default identity mapping where every voxel is active.
+    /// \details This is used when no mask is provided, and the entire CT grid should be scored.
+    /// \return A pointer to a dynamically allocated array where each voxel index maps to itself (e.g., `scorer_idx[i] = i`).
+    ///         The caller is responsible for `delete[]`ing this memory.
     CUDA_HOST
     int32_t*
     mask_mapping() {
@@ -170,20 +190,22 @@ public:
         return scorer_idx;
     }
 
-    /// \brief Calculates the number of active voxels in a scorer index map.
-    /// \param[in] scorer_idx The scorer index map.
-    /// \return The number of active (non-negative) voxels.
+    /// \brief Calculates the number of active (non-masked) voxels in a scorer index map.
+    /// \param[in] scorer_idx The scorer index map generated by `mask_mapping`.
+    /// \return The number of active voxels.
     CUDA_HOST
     uint32_t
     size(int32_t* scorer_idx) {
         int count = 0;
         for (uint32_t ind = 0; ind < this->ct_size; ind++) {
-            if (scorer_idx[ind] >= 0) { count++; }
+            if (scorer_idx[ind] >= 0) {
+                count++;
+            }
         }
         return count;
     }
 
-    /// \brief Saves the voxel-to-scorer index map to a file.
+    /// \brief Saves the mapping of original-to-compact indices to a text file for debugging.
     /// \param[in] filename The name of the file to save to.
     /// \param[in] scorer_idx The scorer index map to save.
     CUDA_HOST
@@ -191,12 +213,14 @@ public:
     save_map(std::string filename, int32_t* scorer_idx) {
         std::ofstream fid0(filename);
         for (uint32_t ind = 0; ind < this->ct_size; ind++) {
-            if (scorer_idx[ind] >= 0) { fid0 << ind << " " << scorer_idx[ind] << "\n"; }
+            if (scorer_idx[ind] >= 0) {
+                fid0 << ind << " " << scorer_idx[ind] << "\n";
+            }
         }
         fid0.close();
     }
 
-    /// \brief Sets the total mask from an external source.
+    /// \brief Sets the total mask using data from an external source.
     /// \param[in] mask A pointer to the external mask data.
     CUDA_HOST
     void
@@ -204,19 +228,25 @@ public:
         this->mask_total = mask;
     }
 
-    /// \brief Converts 3D grid indices (i, j, k) to a 1D voxel index (cnb).
+    /// \brief Converts 3D grid indices (i, j, k) to a 1D flattened index.
     /// \param[in] i The x-index.
     /// \param[in] j The y-index.
     /// \param[in] k The z-index.
-    /// \return The 1D voxel index.
+    /// \return The 1D voxel index (cnb - "current voxel number").
     CUDA_HOST
     cnb_t
     ijk2cnb(ijk_t i, ijk_t j, ijk_t k) {
         return k * this->ct_dim.x * this->ct_dim.y + j * this->ct_dim.x + i;
     }
 
-    /// \brief Converts the total mask into a region of interest (ROI).
-    /// \return A pointer to the newly created `mqi::roi_t` object.
+    /// \brief Converts the bitmap mask into a more compressed Region of Interest (ROI) representation.
+    ///
+    /// \details This function scans the `mask_total` and identifies contiguous segments of active
+    /// voxels, storing them as a series of start points and lengths (strides). This
+    /// "run-length encoding" can be a more memory-efficient way to represent an ROI
+    /// than a full 3D bitmap, especially for large, contiguous regions.
+    ///
+    /// \return A pointer to the newly created `mqi::roi_t` object. The caller is responsible for deleting this object.
     CUDA_HOST
     mqi::roi_t*
     mask_to_roi() {
@@ -256,30 +286,31 @@ public:
         std::copy(stride_vec.begin(), stride_vec.end(), stride);
         std::copy(acc_stride_vec.begin(), acc_stride_vec.end(), acc_stride);
         length = start_vec.size();
-        //        mqi::roi_t roi(method, original_size, length, start, stride);
         mqi::roi_t* roi = new mqi::roi_t(method, original_size, length, start, stride, acc_stride);
         return roi;
     }
 };
 
 /// \class file_parser
-/// \brief A class for parsing key-value pair configuration files.
+/// \brief A simple parser for reading key-value pair configuration files.
 ///
-/// This class reads a configuration file, parses the parameters, and provides
-/// methods to retrieve values by key, with support for various data types.
+/// \details This class reads a simulation configuration file (e.g., `moqui_tps.in`),
+/// parses the parameters, and provides methods to retrieve values by their key.
+/// It supports various data types, default values, and parsing of comma-separated lists,
+/// providing a simple, dependency-free way to configure simulations.
 class file_parser
 {
 public:
-    ///< The path to the configuration file.
+    /// The path to the configuration file.
     std::string filename;
-    ///< The delimiter used to separate keys and values.
+    /// The delimiter string used to separate keys and values (e.g., "=").
     std::string delimeter;
-    ///< A vector containing all lines read from the configuration file.
+    /// A vector containing all non-empty, non-comment lines from the configuration file.
     std::vector<std::string> parameters_total;
 
-    /// \brief Constructs a file_parser object.
+    /// \brief Constructs a `file_parser` object.
     /// \param[in] filename The path to the configuration file.
-    /// \param[in] delimeter The delimiter string.
+    /// \param[in] delimeter The delimiter string to separate keys and values.
     file_parser(std::string filename, std::string delimeter) {
         this->filename         = filename;
         this->delimeter        = delimeter;
@@ -290,23 +321,24 @@ public:
         ;
     }
 
-    /// \brief Reads all lines from the input file.
+    /// \brief Reads all lines from the input configuration file, skipping comments and empty lines.
     /// \return A vector of strings, where each string is a line from the file.
     CUDA_HOST
     std::vector<std::string>
     read_input_parameters() {
         std::ifstream            fid(this->filename);
         std::string              line;
-        std::string              option, value;
         std::vector<std::string> parameters_total;
-        size_t                   pos, comment;
+        size_t                   comment;
         if (fid.is_open()) {
             while (getline(fid, line)) {
-                if (line.size() == 0) continue;
+                if (line.empty()) continue;
                 line = trim_copy(line);
-                if (line.at(0) == '#') continue;
+                if (line.at(0) == '#') continue;   // Skip comment lines
                 comment = line.find("#");
-                if (comment != std::string::npos) { line = line.substr(0, comment); }
+                if (comment != std::string::npos) {
+                    line = line.substr(0, comment);
+                }   // Ignore inline comments
                 parameters_total.push_back(line);
             }
             fid.close();
@@ -316,9 +348,9 @@ public:
         return parameters_total;
     }
 
-    /// \brief Extracts the directory path from a full file path.
+    /// \brief Extracts the directory path from a full file path string.
     /// \param[in] filepath The full path to the file.
-    /// \return The directory path.
+    /// \return The directory part of the path.
     CUDA_HOST
     std::string
     get_path(std::string filepath) {
@@ -327,7 +359,7 @@ public:
         size_t      pos_current = 0, pos_prev = 0;
         pos_current = filepath.find(delimeter);
         while (pos_current != std::string::npos) {
-            if (path.size() == 0) {
+            if (path.empty()) {
                 path += filepath.substr(pos_prev, pos_current - pos_prev);
             } else {
                 path += "/" + filepath.substr(pos_prev, pos_current - pos_prev);
@@ -339,9 +371,9 @@ public:
         return path;
     }
 
-    /// \brief Gets a string value for a given option key.
+    /// \brief Gets a string value for a given configuration option (key).
     /// \param[in] option The key of the parameter to retrieve.
-    /// \param[in] default_value The value to return if the key is not found.
+    /// \param[in] default_value The value to return if the key is not found in the file.
     /// \return The parameter value as a string.
     CUDA_HOST
     std::string
@@ -361,9 +393,9 @@ public:
         return value;
     }
 
-    /// \brief Gets a vector of strings for a given option key.
+    /// \brief Gets a vector of strings for a given option key, where values are separated by a delimiter.
     /// \param[in] option The key of the parameter to retrieve.
-    /// \param[in] delimeter1 The delimiter used to separate values within the string.
+    /// \param[in] delimeter1 The delimiter used to separate values within the string (e.g., ",").
     /// \return A vector of strings.
     CUDA_HOST
     std::vector<std::string>
@@ -371,16 +403,23 @@ public:
         size_t                   pos_current = 0, pos_prev = 0;
         std::string              value = get_string(option, "");
         std::vector<std::string> values;
+        if (value.empty()) return values;
         pos_current = value.find(delimeter1);
         std::string temp;
+        // Loop to find all occurrences of the delimiter
         while (pos_current != std::string::npos) {
             temp = trim_copy(value.substr(pos_prev, pos_current - pos_prev));
-            if (temp.size() > 0) { values.push_back(temp); }
+            if (!temp.empty()) {
+                values.push_back(temp);
+            }
             pos_prev    = pos_current + 1;
             pos_current = value.find(delimeter1, pos_prev);
         }
+        // Add the last token after the final delimiter
         temp = trim_copy(value.substr(pos_prev, pos_current - pos_prev));
-        if (temp.size() > 0) { values.push_back(temp); }
+        if (!temp.empty()) {
+            values.push_back(temp);
+        }
         return values;
     }
 
@@ -397,22 +436,19 @@ public:
 
     /// \brief Gets a vector of floats for a given option key.
     /// \param[in] option The key of the parameter to retrieve.
-    /// \param[in] delimter The delimiter used to separate values within the string.
+    /// \param[in] delimeter The delimiter used to separate values within the string.
     /// \return A vector of floats.
     CUDA_HOST
     std::vector<float>
-    get_float_vector(std::string option, std::string delimter) {
+    get_float_vector(std::string option, std::string delimeter) {
         std::vector<std::string> value_tmp = get_string_vector(option, delimeter);
-        if (value_tmp.size() > 0) {
-            std::vector<float> value;
+        std::vector<float>       value;
+        if (!value_tmp.empty()) {
             for (int i = 0; i < value_tmp.size(); i++) {
                 value.push_back(std::atof(value_tmp[i].c_str()));
             }
-            return value;
-        } else {
-            std::vector<float> empty(0);
-            return empty;
         }
+        return value;
     }
 
     /// \brief Gets an integer value for a given option key.
@@ -434,19 +470,19 @@ public:
     std::vector<int>
     get_int_vector(std::string option, std::string delimeter) {
         std::vector<std::string> value_tmp = get_string_vector(option, delimeter);
-        if (value_tmp.size() > 0) {
-            std::vector<int> value;
+        std::vector<int>         value;
+        if (!value_tmp.empty()) {
             for (int i = 0; i < value_tmp.size(); i++) {
                 value.push_back(std::atoi(value_tmp[i].c_str()));
             }
-            return value;
-        } else {
-            std::vector<int> empty(0);
-            return empty;
         }
+        return value;
     }
 
     /// \brief Gets a boolean value for a given option key.
+    ///
+    /// \details Recognizes "true" (case-insensitive) or any non-zero integer as true.
+    /// All other values are considered false.
     /// \param[in] option The key of the parameter to retrieve.
     /// \param[in] default_value The value to return if the key is not found.
     /// \return The parameter value as a boolean.
@@ -458,8 +494,8 @@ public:
         return value;
     }
 
-    /// \brief Converts a string to a scorer type enum.
-    /// \param[in] scorer_name The name of the scorer.
+    /// \brief Converts a scorer name string to its corresponding `scorer_t` enum value.
+    /// \param[in] scorer_name The name of the scorer from the config file (e.g., "Dose").
     /// \return The corresponding `scorer_t` enum value.
     CUDA_HOST
     scorer_t
@@ -483,8 +519,8 @@ public:
         return type;
     }
 
-    /// \brief Converts a string to an aperture type enum.
-    /// \param[in] aperture_string The name of the aperture type.
+    /// \brief Converts an aperture type string to its corresponding `aperture_type_t` enum value.
+    /// \param[in] aperture_string The name of the aperture type from the config file (e.g., "MASK").
     /// \return The corresponding `aperture_type_t` enum value.
     CUDA_HOST
     aperture_type_t
@@ -500,8 +536,8 @@ public:
         return type;
     }
 
-    /// \brief Converts a string to a simulation type enum.
-    /// \param[in] sim_name The name of the simulation type.
+    /// \brief Converts a simulation type string to its corresponding `sim_type_t` enum value.
+    /// \param[in] sim_name The name of the simulation type from the config file (e.g., "perBeam").
     /// \return The corresponding `sim_type_t` enum value.
     CUDA_HOST
     sim_type_t

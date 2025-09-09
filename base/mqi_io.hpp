@@ -1,3 +1,11 @@
+/// \file mqi_io.hpp
+///
+/// \brief Defines a collection of functions for saving simulation data to various file formats.
+///
+/// This file provides a set of input/output (I/O) utilities to export data from the
+/// simulation's internal structures (like scorers) into standard file formats that can be
+/// easily used by external analysis and visualization tools. Supported formats include
+/// raw binary, NumPy arrays (`.npz`), and medical imaging formats (`.mhd`, `.mha`).
 #ifndef MQI_IO_HPP
 #define MQI_IO_HPP
 
@@ -20,17 +28,21 @@
 
 namespace mqi
 {
+/// \namespace io
+/// \brief A namespace for input/output operations, such as saving simulation results.
 namespace io
 {
-/**
- * @brief Saves scorer data to binary files.
- * @tparam R The floating-point type (e.g., float or double).
- * @param[in] src A pointer to the scorer object.
- * @param[in] scale A scaling factor to apply to the scorer values.
- * @param[in] filepath The directory path where the files will be saved.
- * @param[in] filename The base name for the output files.
- * @details This function saves the scorer data into three separate binary files: `_key1.raw`, `_key2.raw`, and `_value.raw`. It extracts non-empty key-value pairs from the scorer's hash table.
- */
+/// \brief Saves sparse scorer data to separate binary files.
+///
+/// This function extracts the non-zero entries from a scorer's hash table and saves
+/// them into three separate raw binary files: `_key1.raw`, `_key2.raw`, and `_value.raw`.
+/// This format is simple and fast but contains no metadata.
+///
+/// \tparam R The floating-point type (e.g., `float` or `double`).
+/// \param[in] src A pointer to the scorer object containing the data.
+/// \param[in] scale A scaling factor to apply to the scorer values before saving.
+/// \param[in] filepath The directory path where the files will be saved.
+/// \param[in] filename The base name for the output files.
 template<typename R>
 void
 save_to_bin(const mqi::scorer<R>* src,
@@ -38,16 +50,16 @@ save_to_bin(const mqi::scorer<R>* src,
             const std::string&    filepath,
             const std::string&    filename);
 
-/**
- * @brief Saves a raw array to a binary file.
- * @tparam R The floating-point type (e.g., float or double).
- * @param[in] src A pointer to the source data array.
- * @param[in] scale A scaling factor to apply to the data.
- * @param[in] filepath The directory path for the output file.
- * @param[in] filename The name of the output file.
- * @param[in] length The number of elements in the array.
- * @details The data is scaled and then written to a single `.raw` file.
- */
+/// \brief Saves a dense array to a single binary file.
+///
+/// This function scales the data in the source array and writes it to a single `.raw` file.
+///
+/// \tparam R The floating-point type (e.g., `float` or `double`).
+/// \param[in] src A pointer to the source data array.
+/// \param[in] scale A scaling factor to apply to the data.
+/// \param[in] filepath The directory path for the output file.
+/// \param[in] filename The name of the output file.
+/// \param[in] length The number of elements in the array.
 template<typename R>
 void
 save_to_bin(const R*           src,
@@ -56,17 +68,21 @@ save_to_bin(const R*           src,
             const std::string& filename,
             const uint32_t     length);
 
-/**
- * @brief Saves scorer data to a compressed NumPy `.npz` file in CSR format (spot-major).
- * @tparam R The floating-point type (e.g., float or double).
- * @param[in] src A pointer to the scorer object.
- * @param[in] scale A scaling factor to apply to the scorer values.
- * @param[in] filepath The directory path for the output file.
- * @param[in] filename The name of the output file.
- * @param[in] dim The dimensions of the scoring grid.
- * @param[in] num_spots The number of spots.
- * @details The scorer data is saved as a sparse matrix in Compressed Sparse Row (CSR) format, where rows correspond to spots and columns to voxels.
- */
+/// \brief Saves scorer data to a compressed NumPy `.npz` file in spot-major CSR format.
+///
+/// This function converts the sparse scorer data into a Compressed Sparse Row (CSR) matrix
+/// and saves it to a `.npz` file. The CSR format is highly efficient for storing sparse
+/// matrices and is directly compatible with Python libraries like SciPy. In this "spot-major"
+/// version, each row of the matrix corresponds to a beam spot, and each column corresponds
+/// to a voxel index.
+///
+/// \tparam R The floating-point type (e.g., `float` or `double`).
+/// \param[in] src A pointer to the scorer object.
+/// \param[in] scale A scaling factor to apply to the scorer values.
+/// \param[in] filepath The directory path for the output file.
+/// \param[in] filename The name of the output file.
+/// \param[in] dim The dimensions of the scoring grid.
+/// \param[in] num_spots The total number of spots, which determines the number of rows in the matrix.
 template<typename R>
 void
 save_to_npz(const mqi::scorer<R>* src,
@@ -76,17 +92,19 @@ save_to_npz(const mqi::scorer<R>* src,
             mqi::vec3<mqi::ijk_t> dim,
             uint32_t              num_spots);
 
-/**
- * @brief Saves scorer data to a compressed NumPy `.npz` file in CSR format (voxel-major).
- * @tparam R The floating-point type (e.g., float or double).
- * @param[in] src A pointer to the scorer object.
- * @param[in] scale A scaling factor to apply to the scorer values.
- * @param[in] filepath The directory path for the output file.
- * @param[in] filename The name of the output file.
- * @param[in] dim The dimensions of the scoring grid.
- * @param[in] num_spots The number of spots.
- * @details The scorer data is saved as a sparse matrix in Compressed Sparse Row (CSR) format, where rows correspond to voxels and columns to spots. This version uses the ROI mask to determine the matrix size.
- */
+/// \brief Saves scorer data to a compressed NumPy `.npz` file in voxel-major CSR format.
+///
+/// This function also saves the data in CSR format, but in a "voxel-major" layout.
+/// Each row of the matrix corresponds to a voxel within the defined Region of Interest (ROI),
+/// and each column corresponds to a beam spot.
+///
+/// \tparam R The floating-point type (e.g., `float` or `double`).
+/// \param[in] src A pointer to the scorer object.
+/// \param[in] scale A scaling factor to apply to the scorer values.
+/// \param[in] filepath The directory path for the output file.
+/// \param[in] filename The name of the output file.
+/// \param[in] dim The dimensions of the scoring grid.
+/// \param[in] num_spots The total number of spots.
 template<typename R>
 void
 save_to_npz2(const mqi::scorer<R>* src,
@@ -96,19 +114,20 @@ save_to_npz2(const mqi::scorer<R>* src,
              mqi::vec3<mqi::ijk_t> dim,
              uint32_t              num_spots);
 
-/**
- * @brief Saves scorer data to a compressed NumPy `.npz` file with time scaling and thresholding.
- * @tparam R The floating-point type (e.g., float or double).
- * @param[in] src A pointer to the scorer object.
- * @param[in] scale A scaling factor to apply to the scorer values.
- * @param[in] filepath The directory path for the output file.
- * @param[in] filename The name of the output file.
- * @param[in] dim The dimensions of the scoring grid.
- * @param[in] num_spots The number of spots.
- * @param[in] time_scale An array of time scaling factors for each spot.
- * @param[in] threshold A threshold value to apply to the data.
- * @details This is an extended version of `save_to_npz` that applies additional processing (time scaling and thresholding) before saving.
- */
+/// \brief Saves scorer data to a compressed NumPy `.npz` file with additional processing.
+///
+/// This is an extended version of `save_to_npz` that applies time scaling and a
+/// threshold to the data before saving it in the spot-major CSR format.
+///
+/// \tparam R The floating-point type (e.g., `float` or `double`).
+/// \param[in] src A pointer to the scorer object.
+/// \param[in] scale A scaling factor to apply to the scorer values.
+/// \param[in] filepath The directory path for the output file.
+/// \param[in] filename The name of the output file.
+/// \param[in] dim The dimensions of the scoring grid.
+/// \param[in] num_spots The number of spots.
+/// \param[in] time_scale An array of time scaling factors to apply to each spot.
+/// \param[in] threshold A threshold value to apply to the data.
 template<typename R>
 void
 save_to_npz(const mqi::scorer<R>* src,
@@ -120,16 +139,17 @@ save_to_npz(const mqi::scorer<R>* src,
             R*                    time_scale,
             R                     threshold);
 
-/**
- * @brief Saves key-value pair data to binary files.
- * @tparam R The floating-point type (e.g., float or double).
- * @param[in] src A pointer to the array of key_value structs.
- * @param[in] scale A scaling factor to apply to the values.
- * @param[in] max_capacity The maximum capacity of the source array.
- * @param[in] filepath The directory path for the output files.
- * @param[in] filename The base name for the output files.
- * @details Similar to the scorer version, this function saves key-value data into three separate binary files: `_key1.raw`, `_key2.raw`, and `_value.raw`.
- */
+/// \brief Saves sparse key-value data to separate binary files.
+///
+/// This function extracts non-empty entries from a `key_value` array and saves them
+/// into three separate raw binary files: `_key1.raw`, `_key2.raw`, and `_value.raw`.
+///
+/// \tparam R The floating-point type (e.g., `float` or `double`).
+/// \param[in] src A pointer to the array of `key_value` structs.
+/// \param[in] scale A scaling factor to apply to the values.
+/// \param[in] max_capacity The total capacity of the source array.
+/// \param[in] filepath The directory path for the output files.
+/// \param[in] filename The base name for the output files.
 template<typename R>
 void
 save_to_bin(const mqi::key_value* src,
@@ -138,17 +158,19 @@ save_to_bin(const mqi::key_value* src,
             const std::string&    filepath,
             const std::string&    filename);
 
-/**
- * @brief Saves volumetric data to an MHD/raw file pair.
- * @tparam R The floating-point type (e.g., float or double).
- * @param[in] children A pointer to the node structure defining the geometry.
- * @param[in] src A pointer to the source data array.
- * @param[in] scale A scaling factor to apply to the data.
- * @param[in] filepath The directory path for the output files.
- * @param[in] filename The base name for the output files.
- * @param[in] length The number of elements in the source array.
- * @details This function writes a `.mhd` header file and a `.raw` binary data file, a format commonly used in medical imaging (e.g., by ITK).
- */
+/// \brief Saves volumetric data to a MetaImage header/raw file pair (`.mhd`/`.raw`).
+///
+/// This format is common in medical imaging and is used by toolkits like ITK and
+/// visualization software like 3D Slicer. It consists of a text header file (`.mhd`)
+/// containing metadata and a separate binary file (`.raw`) containing the grid data.
+///
+/// \tparam R The floating-point type (e.g., `float` or `double`).
+/// \param[in] children A pointer to the node structure that defines the grid geometry.
+/// \param[in] src A pointer to the source data array.
+/// \param[in] scale A scaling factor to apply to the data.
+/// \param[in] filepath The directory path for the output files.
+/// \param[in] filename The base name for the output files.
+/// \param[in] length The number of elements in the source array.
 template<typename R>
 void
 save_to_mhd(const mqi::node_t<R>* children,
@@ -158,17 +180,18 @@ save_to_mhd(const mqi::node_t<R>* children,
             const std::string&    filename,
             const uint32_t        length);
 
-/**
- * @brief Saves volumetric data to a single MHA file.
- * @tparam R The floating-point type (e.g., float or double).
- * @param[in] children A pointer to the node structure defining the geometry.
- * @param[in] src A pointer to the source data array.
- * @param[in] scale A scaling factor to apply to the data.
- * @param[in] filepath The directory path for the output file.
- * @param[in] filename The name of the output file.
- * @param[in] length The number of elements in the source array.
- * @details This function writes a single `.mha` file containing both the header and the binary data.
- */
+/// \brief Saves volumetric data to a single MetaImage file (`.mha`).
+///
+/// The `.mha` format is similar to `.mhd`, but it combines both the header metadata
+/// and the binary grid data into a single file for convenience.
+///
+/// \tparam R The floating-point type (e.g., `float` or `double`).
+/// \param[in] children A pointer to the node structure that defines the grid geometry.
+/// \param[in] src A pointer to the source data array.
+/// \param[in] scale A scaling factor to apply to the data.
+/// \param[in] filepath The directory path for the output file.
+/// \param[in] filename The name of the output file.
+/// \param[in] length The number of elements in the source array.
 template<typename R>
 void
 save_to_mha(const mqi::node_t<R>* children,
@@ -180,24 +203,18 @@ save_to_mha(const mqi::node_t<R>* children,
 }   // namespace io
 }   // namespace mqi
 
-///< Function to write key values into file
-///< src: array and this array is copied
-///<
+// Template function implementations are included in the header file.
+
 template<typename R>
 void
 mqi::io::save_to_bin(const mqi::scorer<R>* src,
                      const R               scale,
                      const std::string&    filepath,
                      const std::string&    filename) {
-    /// create a copy using valarray and apply scale
-
-    unsigned int            nnz = 0;
+    // Extract non-zero key-value pairs from the scorer's hash table.
     std::vector<mqi::key_t> key1;
     std::vector<mqi::key_t> key2;
     std::vector<double>     value;
-    key1.clear();
-    key2.clear();
-    value.clear();
     for (int ind = 0; ind < src->max_capacity_; ind++) {
         if (src->data_[ind].key1 != mqi::empty_pair && src->data_[ind].key2 != mqi::empty_pair &&
             src->data_[ind].value > 0) {
@@ -206,43 +223,31 @@ mqi::io::save_to_bin(const mqi::scorer<R>* src,
             value.push_back(src->data_[ind].value * scale);
         }
     }
+    printf("Non-zero elements: %lu\n", value.size());
 
-    printf("length %lu %lu %lu\n", key1.size(), key2.size(), value.size());
-
-    /// open out stream
+    // Write the key and value vectors to separate binary files.
     std::ofstream fid_key1(filepath + "/" + filename + "_key1.raw",
                            std::ios::out | std::ios::binary);
     if (!fid_key1)
         std::cout << "Cannot write :" << filepath + "/" + filename + "_key1.raw" << std::endl;
-
-    /// write to a file
-    fid_key1.write(reinterpret_cast<const char*>(&key1.data()[0]),
-                   key1.size() * sizeof(mqi::key_t));
+    fid_key1.write(reinterpret_cast<const char*>(key1.data()), key1.size() * sizeof(mqi::key_t));
     fid_key1.close();
 
     std::ofstream fid_key2(filepath + "/" + filename + "_key2.raw",
                            std::ios::out | std::ios::binary);
     if (!fid_key2)
         std::cout << "Cannot write :" << filepath + "/" + filename + "_key2.raw" << std::endl;
-
-    /// write to a file
-    fid_key2.write(reinterpret_cast<const char*>(&key2.data()[0]),
-                   key2.size() * sizeof(mqi::key_t));
+    fid_key2.write(reinterpret_cast<const char*>(key2.data()), key2.size() * sizeof(mqi::key_t));
     fid_key2.close();
 
     std::ofstream fid_bin(filepath + "/" + filename + "_value.raw",
                           std::ios::out | std::ios::binary);
     if (!fid_bin)
         std::cout << "Cannot write :" << filepath + "/" + filename + "_value.raw" << std::endl;
-
-    /// write to a file
-    fid_bin.write(reinterpret_cast<const char*>(&value.data()[0]), value.size() * sizeof(double));
+    fid_bin.write(reinterpret_cast<const char*>(value.data()), value.size() * sizeof(double));
     fid_bin.close();
 }
 
-///< Function to write array into file
-///< src: array and this array is copied
-///<
 template<typename R>
 void
 mqi::io::save_to_bin(const R*           src,
@@ -250,22 +255,19 @@ mqi::io::save_to_bin(const R*           src,
                      const std::string& filepath,
                      const std::string& filename,
                      const uint32_t     length) {
-    /// create a copy using valarray and apply scale
+    // Create a copy of the data to apply scaling without modifying the original.
     std::valarray<R> dest(src, length);
-    munmap(&dest, length * sizeof(R));
     dest *= scale;
-    /// open out stream
+    // Open the output file in binary mode and write the data.
     std::ofstream fid_bin(filepath + "/" + filename + ".raw", std::ios::out | std::ios::binary);
-    if (!fid_bin) std::cout << "Cannot write :" << filepath + "/" + filename + ".raw" << std::endl;
-
-    /// write to a file
+    if (!fid_bin) {
+        std::cout << "Cannot write :" << filepath + "/" + filename + ".raw" << std::endl;
+        return;
+    }
     fid_bin.write(reinterpret_cast<const char*>(&dest[0]), length * sizeof(R));
     fid_bin.close();
 }
 
-///< Function to write key values into file
-///< src: array and this array is copied
-///<
 template<typename R>
 void
 mqi::io::save_to_bin(const mqi::key_value* src,
@@ -273,15 +275,10 @@ mqi::io::save_to_bin(const mqi::key_value* src,
                      uint32_t              max_capacity,
                      const std::string&    filepath,
                      const std::string&    filename) {
-    /// create a copy using valarray and apply scale
-
-    unsigned int            nnz = 0;
+    // Extract non-zero key-value pairs from the source array.
     std::vector<mqi::key_t> key1;
     std::vector<mqi::key_t> key2;
     std::vector<R>          value;
-    key1.clear();
-    key2.clear();
-    value.clear();
     for (int ind = 0; ind < max_capacity; ind++) {
         if (src[ind].key1 != mqi::empty_pair && src[ind].key2 != mqi::empty_pair &&
             src[ind].value > 0) {
@@ -290,42 +287,30 @@ mqi::io::save_to_bin(const mqi::key_value* src,
             value.push_back(src[ind].value * scale);
         }
     }
+    printf("Non-zero elements: %lu\n", value.size());
 
-    printf("length %lu %lu %lu\n", key1.size(), key2.size(), value.size());
-    /// open out stream
+    // Write the key and value vectors to separate binary files.
     std::ofstream fid_key1(filepath + "/" + filename + "_key1.raw",
                            std::ios::out | std::ios::binary);
     if (!fid_key1)
         std::cout << "Cannot write :" << filepath + "/" + filename + "_key1.raw" << std::endl;
-
-    /// write to a file
-    fid_key1.write(reinterpret_cast<const char*>(&key1.data()[0]),
-                   key1.size() * sizeof(mqi::key_t));
+    fid_key1.write(reinterpret_cast<const char*>(key1.data()), key1.size() * sizeof(mqi::key_t));
     fid_key1.close();
 
     std::ofstream fid_key2(filepath + "/" + filename + "_key2.raw",
                            std::ios::out | std::ios::binary);
     if (!fid_key2)
         std::cout << "Cannot write :" << filepath + "/" + filename + "_key2.raw" << std::endl;
-
-    /// write to a file
-    fid_key2.write(reinterpret_cast<const char*>(&key2.data()[0]),
-                   key2.size() * sizeof(mqi::key_t));
+    fid_key2.write(reinterpret_cast<const char*>(key2.data()), key2.size() * sizeof(mqi::key_t));
     fid_key2.close();
 
     std::ofstream fid_bin(filepath + "/" + filename + "_value.raw",
                           std::ios::out | std::ios::binary);
     if (!fid_bin)
         std::cout << "Cannot write :" << filepath + "/" + filename + "_value.raw" << std::endl;
-
-    /// write to a file
-    fid_bin.write(reinterpret_cast<const char*>(&value.data()[0]), value.size() * sizeof(R));
+    fid_bin.write(reinterpret_cast<const char*>(value.data()), value.size() * sizeof(R));
     fid_bin.close();
 }
-
-///< Function to write key values into file
-///< src: array and this array is copied
-///<
 
 template<typename R>
 void
@@ -335,69 +320,52 @@ mqi::io::save_to_npz(const mqi::scorer<R>* src,
                      const std::string&    filename,
                      mqi::vec3<mqi::ijk_t> dim,
                      uint32_t              num_spots) {
-    uint32_t vol_size;
-    vol_size = dim.x * dim.y * dim.z;
-
-    /// create a copy using valarray and apply scale
+    uint32_t vol_size = dim.x * dim.y * dim.z;
     const std::string name_a = "indices.npy", name_b = "indptr.npy", name_c = "shape.npy",
                       name_d = "data.npy", name_e = "format.npy";
-    std::vector<double>* value_vec = new std::vector<double>[num_spots];
-    std::vector<mqi::key_t>*          vox_vec = new std::vector<mqi::key_t>[num_spots];
-    std::vector<double>               data_vec;
-    std::vector<uint32_t>             indices_vec;
-    std::vector<uint32_t>             indptr_vec;
-    mqi::key_t                        vox_ind, spot_ind;
-    double                            value;
-    int                               spot_start = 0, spot_end = 0;
-    int                               vox_in_spot[num_spots];
-    std::vector<double>::iterator     it_data;
-    std::vector<uint32_t>::iterator   it_ind;
-    std::vector<mqi::key_t>::iterator it_spot;
-    int                               vox_count;
-    printf("save_to_npz\n");
 
-    printf("scan start %d\n", src->max_capacity_);
+    // Create temporary vectors to group voxel indices and values by spot index.
+    auto* value_vec = new std::vector<double>[num_spots];
+    auto* vox_vec   = new std::vector<mqi::key_t>[num_spots];
+
+    // Iterate through the hash table and populate the temporary vectors.
     for (int ind = 0; ind < src->max_capacity_; ind++) {
         if (src->data_[ind].key1 != mqi::empty_pair && src->data_[ind].key2 != mqi::empty_pair) {
-            vox_count = 0;
-            vox_ind   = src->data_[ind].key1;
-            spot_ind  = src->data_[ind].key2;
+            mqi::key_t vox_ind  = src->data_[ind].key1;
+            mqi::key_t spot_ind = src->data_[ind].key2;
             assert(vox_ind >= 0 && vox_ind < vol_size);
-            value = src->data_[ind].value;
-            value_vec[spot_ind].push_back(value * scale);
+            value_vec[spot_ind].push_back(src->data_[ind].value * scale);
             vox_vec[spot_ind].push_back(vox_ind);
         }
     }
 
-    vox_count = 0;
-    indptr_vec.push_back(vox_count);
-    for (int ii = 0; ii < num_spots; ii++) {
-        data_vec.insert(data_vec.end(), value_vec[ii].begin(), value_vec[ii].end());
-        indices_vec.insert(indices_vec.end(), vox_vec[ii].begin(), vox_vec[ii].end());
-        vox_count += vox_vec[ii].size();
-        indptr_vec.push_back(vox_count);
+    // --- Convert the grouped data into the three CSR arrays: data, indices, and indptr ---
+    std::vector<double>   data_vec;
+    std::vector<uint32_t> indices_vec;
+    std::vector<uint32_t> indptr_vec;
+
+    int nnz_count = 0;
+    indptr_vec.push_back(nnz_count); // The first entry of indptr is always 0.
+    for (int i = 0; i < num_spots; i++) {
+        data_vec.insert(data_vec.end(), value_vec[i].begin(), value_vec[i].end());
+        indices_vec.insert(indices_vec.end(), vox_vec[i].begin(), vox_vec[i].end());
+        nnz_count += vox_vec[i].size();
+        indptr_vec.push_back(nnz_count);
     }
 
-    printf("scan done %lu %lu %lu\n", data_vec.size(), indices_vec.size(), indptr_vec.size());
-    printf("%d %d\n", vol_size, num_spots);
+    // --- Prepare data for saving with the cnpy library ---
+    uint32_t shape[2] = { num_spots, vol_size };
+    std::string format = "csr";
 
-    uint32_t    shape[2] = { num_spots, vol_size };
-    std::string format   = "csr";
-    size_t      size_a = indices_vec.size(), size_b = indptr_vec.size(), size_c = 2,
-           size_d = data_vec.size(), size_e = 3;
+    // Save the five arrays that constitute a SciPy CSR matrix to a single .npz file.
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "indices", indices_vec, "w");
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "indptr", indptr_vec, "a");
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "shape", shape, 2, "a");
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "data", data_vec, "a");
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "format", format, 3, "a");
 
-    uint32_t* indices = new uint32_t[indices_vec.size()];
-    uint32_t* indptr  = new uint32_t[indptr_vec.size()];
-    double*   data    = new double[data_vec.size()];
-    std::copy(indices_vec.begin(), indices_vec.end(), indices);
-    std::copy(indptr_vec.begin(), indptr_vec.end(), indptr);
-    std::copy(data_vec.begin(), data_vec.end(), data);
-    printf("%lu\n", size_b);
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_a, indices, size_a, "w");
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_b, indptr, size_b, "a");
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_c, shape, size_c, "a");
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_d, data, size_d, "a");
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_e, format, size_e, "a");
+    delete[] value_vec;
+    delete[] vox_vec;
 }
 
 template<typename R>
@@ -408,88 +376,74 @@ mqi::io::save_to_npz2(const mqi::scorer<R>* src,
                       const std::string&    filename,
                       mqi::vec3<mqi::ijk_t> dim,
                       uint32_t              num_spots) {
-    uint32_t vol_size;
-    vol_size = src->roi_->get_mask_size();
-    /// create a copy using valarray and apply scale
+    // In this voxel-major version, the number of rows is the number of active voxels in the ROI.
+    uint32_t vol_size = src->roi_->get_mask_size();
     const std::string name_a = "indices.npy", name_b = "indptr.npy", name_c = "shape.npy",
                       name_d = "data.npy", name_e = "format.npy";
 
-    std::vector<double>*              value_vec = new std::vector<double>[vol_size];
-    std::vector<mqi::key_t>*          spot_vec  = new std::vector<mqi::key_t>[vol_size];
-    std::vector<double>               data_vec;
-    std::vector<uint32_t>             indices_vec;
-    std::vector<uint32_t>             indptr_vec;
-    mqi::key_t                        vox_ind, spot_ind;
-    double                            value;
-    int                               spot_start = 0, spot_end = 0;
-    std::vector<double>::iterator     it_data;
-    std::vector<uint32_t>::iterator   it_ind;
-    std::vector<mqi::key_t>::iterator it_spot;
-    int                               spot_count;
-    printf("save_to_npz\n");
+    // Create temporary vectors to group spot indices and values by voxel index.
+    auto* value_vec = new std::vector<double>[vol_size];
+    auto* spot_vec  = new std::vector<mqi::key_t>[vol_size];
 
-    printf("scan start %d\n", src->max_capacity_);
+    // Iterate through the hash table and populate the temporary vectors.
     for (int ind = 0; ind < src->max_capacity_; ind++) {
         if (src->data_[ind].key1 != mqi::empty_pair && src->data_[ind].key2 != mqi::empty_pair) {
-            vox_ind = src->data_[ind].key1;
-            vox_ind = src->roi_->get_mask_idx(vox_ind);
-            if (vox_ind < 0) {
-                printf("is this right?\n");
-                continue;
-            }
-            spot_ind = src->data_[ind].key2;
+            // Map the original voxel index to the compact ROI index.
+            mqi::key_t vox_ind = src->roi_->get_mask_idx(src->data_[ind].key1);
+            if (vox_ind < 0) continue; // Skip if the voxel is not in the ROI.
+
+            mqi::key_t spot_ind = src->data_[ind].key2;
             assert(vox_ind >= 0 && vox_ind < vol_size);
-            value = src->data_[ind].value;
-            assert(value > 0);
-            value_vec[vox_ind].push_back(value * scale);
+            value_vec[vox_ind].push_back(src->data_[ind].value * scale);
             spot_vec[vox_ind].push_back(spot_ind);
         }
     }
-    printf("Sorting start\n");
+
+    // Sort the spot indices for each voxel, as required by the CSR format.
     for (int ind = 0; ind < vol_size; ind++) {
         if (spot_vec[ind].size() > 1) {
-            std::vector<int> sort_ind(spot_vec[ind].size());
-            std::iota(sort_ind.begin(), sort_ind.end(), 0);
-            sort(sort_ind.begin(), sort_ind.end(), [&](int i, int j) {
+            std::vector<int> sort_indices(spot_vec[ind].size());
+            std::iota(sort_indices.begin(), sort_indices.end(), 0);
+            sort(sort_indices.begin(), sort_indices.end(), [&](int i, int j) {
                 return spot_vec[ind][i] < spot_vec[ind][j];
             });
+            // Reorder the spot and value vectors according to the sorted indices.
             std::vector<double>     sorted_value(spot_vec[ind].size());
             std::vector<mqi::key_t> sorted_spot(spot_vec[ind].size());
             for (int sorted_ind = 0; sorted_ind < spot_vec[ind].size(); sorted_ind++) {
-                sorted_value[sorted_ind] = value_vec[ind][sort_ind[sorted_ind]];
-                sorted_spot[sorted_ind]  = spot_vec[ind][sort_ind[sorted_ind]];
+                sorted_value[sorted_ind] = value_vec[ind][sort_indices[sorted_ind]];
+                sorted_spot[sorted_ind]  = spot_vec[ind][sort_indices[sorted_ind]];
             }
             spot_vec[ind]  = sorted_spot;
             value_vec[ind] = sorted_value;
         }
     }
 
-    spot_count = 0;
+    // --- Convert the grouped data into the three CSR arrays ---
+    std::vector<double>   data_vec;
+    std::vector<uint32_t> indices_vec;
+    std::vector<uint32_t> indptr_vec;
+    int spot_count = 0;
     indptr_vec.push_back(spot_count);
-    for (int ii = 0; ii < vol_size; ii++) {
-        data_vec.insert(data_vec.end(), value_vec[ii].begin(), value_vec[ii].end());
-        indices_vec.insert(indices_vec.end(), spot_vec[ii].begin(), spot_vec[ii].end());
-        spot_count += spot_vec[ii].size();
+    for (int i = 0; i < vol_size; i++) {
+        data_vec.insert(data_vec.end(), value_vec[i].begin(), value_vec[i].end());
+        indices_vec.insert(indices_vec.end(), spot_vec[i].begin(), spot_vec[i].end());
+        spot_count += spot_vec[i].size();
         indptr_vec.push_back(spot_count);
     }
 
+    // --- Prepare data for saving with the cnpy library ---
     uint32_t    shape[2] = { vol_size, num_spots };
     std::string format   = "csr";
-    size_t      size_a = indices_vec.size(), size_b = indptr_vec.size(), size_c = 2,
-           size_d = data_vec.size(), size_e = 3;
 
-    uint32_t* indices = new uint32_t[indices_vec.size()];
-    uint32_t* indptr  = new uint32_t[indptr_vec.size()];
-    double*   data    = new double[data_vec.size()];
-    std::copy(indices_vec.begin(), indices_vec.end(), indices);
-    std::copy(indptr_vec.begin(), indptr_vec.end(), indptr);
-    std::copy(data_vec.begin(), data_vec.end(), data);
-    printf("%lu\n", size_b);
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_a, indices, size_a, "w");
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_b, indptr, size_b, "a");
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_c, shape, size_c, "a");
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_d, data, size_d, "a");
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_e, format, size_e, "a");
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "indices", indices_vec, "w");
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "indptr", indptr_vec, "a");
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "shape", shape, 2, "a");
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "data", data_vec, "a");
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "format", format, 3, "a");
+
+    delete[] value_vec;
+    delete[] spot_vec;
 }
 
 template<typename R>
@@ -502,36 +456,20 @@ mqi::io::save_to_npz(const mqi::scorer<R>* src,
                      uint32_t              num_spots,
                      R*                    time_scale,
                      R                     threshold) {
-    uint32_t vol_size;
-    vol_size = dim.x * dim.y * dim.z;
-    /// create a copy using valarray and apply scale
+    uint32_t vol_size = dim.x * dim.y * dim.z;
     const std::string name_a = "indices.npy", name_b = "indptr.npy", name_c = "shape.npy",
                       name_d = "data.npy", name_e = "format.npy";
-    std::vector<double>               value_vec[num_spots];
-    std::vector<mqi::key_t>           vox_vec[num_spots];
-    std::vector<double>               data_vec;
-    std::vector<uint32_t>             indices_vec;
-    std::vector<uint32_t>             indptr_vec;
-    mqi::key_t                        vox_ind, spot_ind;
-    double                            value;
-    int                               spot_start = 0, spot_end = 0;
-    int                               vox_in_spot[num_spots];
-    std::vector<double>::iterator     it_data;
-    std::vector<uint32_t>::iterator   it_ind;
-    std::vector<mqi::key_t>::iterator it_spot;
-    int                               vox_count;
-    printf("save_to_npz\n");
-    for (int ind = 0; ind < num_spots; ind++) {
-        vox_in_spot[ind] = 0;
-    }
-    printf("scan start %d\n", src->max_capacity_);
+
+    auto* value_vec = new std::vector<double>[num_spots];
+    auto* vox_vec   = new std::vector<mqi::key_t>[num_spots];
+
+    // Iterate through the hash table, apply scaling and thresholding, and populate temporary vectors.
     for (int ind = 0; ind < src->max_capacity_; ind++) {
         if (src->data_[ind].key1 != mqi::empty_pair && src->data_[ind].key2 != mqi::empty_pair) {
-            vox_count = 0;
-            vox_ind   = src->data_[ind].key1;
-            spot_ind  = src->data_[ind].key2;
+            mqi::key_t vox_ind  = src->data_[ind].key1;
+            mqi::key_t spot_ind = src->data_[ind].key2;
             assert(vox_ind >= 0 && vox_ind < vol_size);
-            value = src->data_[ind].value;
+            double value = src->data_[ind].value;
             value *= scale;
             value -= 2 * threshold;
             if (value < 0) value = 0;
@@ -541,34 +479,30 @@ mqi::io::save_to_npz(const mqi::scorer<R>* src,
         }
     }
 
-    vox_count = 0;
+    // Convert the grouped data into the three CSR arrays.
+    std::vector<double>   data_vec;
+    std::vector<uint32_t> indices_vec;
+    std::vector<uint32_t> indptr_vec;
+    int vox_count = 0;
     indptr_vec.push_back(vox_count);
-    for (int ii = 0; ii < num_spots; ii++) {
-        data_vec.insert(data_vec.end(), value_vec[ii].begin(), value_vec[ii].end());
-        indices_vec.insert(indices_vec.end(), vox_vec[ii].begin(), vox_vec[ii].end());
-        vox_count += vox_vec[ii].size();
+    for (int i = 0; i < num_spots; i++) {
+        data_vec.insert(data_vec.end(), value_vec[i].begin(), value_vec[i].end());
+        indices_vec.insert(indices_vec.end(), vox_vec[i].begin(), vox_vec[i].end());
+        vox_count += vox_vec[i].size();
         indptr_vec.push_back(vox_count);
     }
-    printf("scan done %lu %lu %lu\n", data_vec.size(), indices_vec.size(), indptr_vec.size());
-    printf("%d %d\n", vol_size, num_spots);
 
+    // Prepare and save the arrays to an .npz file.
     uint32_t    shape[2] = { num_spots, vol_size };
     std::string format   = "csr";
-    size_t      size_a = indices_vec.size(), size_b = indptr_vec.size(), size_c = 2,
-           size_d = data_vec.size(), size_e = 3;
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "indices", indices_vec, "w");
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "indptr", indptr_vec, "a");
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "shape", shape, 2, "a");
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "data", data_vec, "a");
+    mqi::io::save_npz(filepath + "/" + filename + ".npz", "format", format, 3, "a");
 
-    uint32_t* indices = new uint32_t[indices_vec.size()];
-    uint32_t* indptr  = new uint32_t[indptr_vec.size()];
-    double*   data    = new double[data_vec.size()];
-    std::copy(indices_vec.begin(), indices_vec.end(), indices);
-    std::copy(indptr_vec.begin(), indptr_vec.end(), indptr);
-    std::copy(data_vec.begin(), data_vec.end(), data);
-    printf("%lu\n", size_b);
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_a, indices, size_a, "w");
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_b, indptr, size_b, "a");
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_c, shape, size_c, "a");
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_d, data, size_d, "a");
-    mqi::io::save_npz(filepath + "/" + filename + ".npz", name_e, format, size_e, "a");
+    delete[] value_vec;
+    delete[] vox_vec;
 }
 
 template<typename R>
@@ -579,52 +513,40 @@ mqi::io::save_to_mhd(const mqi::node_t<R>* children,
                      const std::string&    filepath,
                      const std::string&    filename,
                      const uint32_t        length) {
-    ///< TODO: this works only for two depth world
-    ///< TODO: dx, dy, and dz calculation works only for AABB
-    float dx = children->geo[0].get_x_edges()[1];
-    dx -= children->geo[0].get_x_edges()[0];
-    float dy = children->geo[0].get_y_edges()[1];
-    dy -= children->geo[0].get_y_edges()[0];
-    float dz = children->geo[0].get_z_edges()[1];
-    dz -= children->geo[0].get_z_edges()[0];
-    float x0 = children->geo[0].get_x_edges()[0];
-    x0 += children->geo[0].get_x_edges()[0];
-    x0 /= 2.0;
-    float y0 = children->geo[0].get_y_edges()[0];
-    y0 += children->geo[0].get_y_edges()[0];
-    y0 /= 2.0;
-    float z0 = children->geo[0].get_z_edges()[0];
-    z0 += children->geo[0].get_z_edges()[0];
-    z0 /= 2.0;
+    // Extract geometry information from the node structure.
+    float dx = children->geo[0].get_x_edges()[1] - children->geo[0].get_x_edges()[0];
+    float dy = children->geo[0].get_y_edges()[1] - children->geo[0].get_y_edges()[0];
+    float dz = children->geo[0].get_z_edges()[1] - children->geo[0].get_z_edges()[0];
+    float x0 = children->geo[0].get_x_edges()[0] + dx * 0.5;
+    float y0 = children->geo[0].get_y_edges()[0] + dy * 0.5;
+    float z0 = children->geo[0].get_z_edges()[0] + dz * 0.5;
+
+    // Write the .mhd header file with all necessary metadata.
     std::ofstream fid_header(filepath + "/" + filename + ".mhd", std::ios::out);
-    if (!fid_header) { std::cout << "Cannot open file!" << std::endl; }
+    if (!fid_header) { std::cout << "Cannot open file!" << std::endl; return; }
     fid_header << "ObjectType = Image\n";
     fid_header << "NDims = 3\n";
     fid_header << "BinaryData = True\n";
-    fid_header
-      << "BinaryDataByteOrderMSB = False\n";   // True for big endian, False for little endian
+    fid_header << "BinaryDataByteOrderMSB = False\n";
     fid_header << "CompressedData = False\n";
-    fid_header << "TransformMatrix 1 0 0 0 1 0 0 0 1\n";
-    fid_header << "Offset " << x0 << " " << y0 << " " << z0 << std::endl;
-    fid_header << "CenterOfRotation 0 0 0\n";
+    fid_header << "TransformMatrix = 1 0 0 0 1 0 0 0 1\n";
+    fid_header << "Offset = " << x0 << " " << y0 << " " << z0 << std::endl;
+    fid_header << "CenterOfRotation = 0 0 0\n";
     fid_header << "AnatomicOrientation = RAI\n";
     fid_header << "DimSize = " << children->geo[0].get_nxyz().x << " "
                << children->geo[0].get_nxyz().y << " " << children->geo[0].get_nxyz().z << "\n";
-    ///< TODO: if R is double, MET_FLOAT should be MET_DOUBLE
     fid_header << "ElementType = MET_DOUBLE\n";
-
     fid_header << "ElementSpacing = " << dx << " " << dy << " " << dz << "\n";
-    fid_header << "ElementDataFile = " << filename << ".raw"
-               << "\n";
+    fid_header << "ElementDataFile = " << filename << ".raw\n";
     fid_header.close();
     if (!fid_header.good()) { std::cout << "Error occurred at writing time!" << std::endl; }
+
+    // Scale the data and write it to the separate .raw file.
     std::valarray<double> dest(src, length);
-    munmap(&dest, length * sizeof(double));
     dest *= scale;
     std::ofstream fid_raw(filepath + "/" + filename + ".raw", std::ios::out | std::ios::binary);
-    if (!fid_raw) { std::cout << "Cannot open file!" << std::endl; }
+    if (!fid_raw) { std::cout << "Cannot open file!" << std::endl; return; }
     fid_raw.write(reinterpret_cast<const char*>(&dest[0]), length * sizeof(double));
-
     fid_raw.close();
     if (!fid_raw.good()) { std::cout << "Error occurred at writing time!" << std::endl; }
 }
@@ -637,41 +559,38 @@ mqi::io::save_to_mha(const mqi::node_t<R>* children,
                      const std::string&    filepath,
                      const std::string&    filename,
                      const uint32_t        length) {
-    ///< TODO: this works only for two depth world
-    ///< TODO: dx, dy, and dz calculation works only for AABB
-    float dx = children->geo[0].get_x_edges()[1];
-    dx -= children->geo[0].get_x_edges()[0];
-    float dy = children->geo[0].get_y_edges()[1];
-    dy -= children->geo[0].get_y_edges()[0];
-    float dz = children->geo[0].get_z_edges()[1];
-    dz -= children->geo[0].get_z_edges()[0];
+    // Extract geometry information.
+    float dx = children->geo[0].get_x_edges()[1] - children->geo[0].get_x_edges()[0];
+    float dy = children->geo[0].get_y_edges()[1] - children->geo[0].get_y_edges()[0];
+    float dz = children->geo[0].get_z_edges()[1] - children->geo[0].get_z_edges()[0];
     float x0 = children->geo[0].get_x_edges()[0] + dx * 0.5;
     float y0 = children->geo[0].get_y_edges()[0] + dy * 0.5;
     float z0 = children->geo[0].get_z_edges()[0] + dz * 0.5;
-    std::cout << "x0 " << std::setprecision(9) << x0 << " y0 " << y0 << " z0 " << z0 << std::endl;
+
+    // Scale the source data.
     std::valarray<double> dest(src, length);
-    munmap(&dest, length * sizeof(double));
     dest *= scale;
-    std::ofstream fid_header(filepath + "/" + filename + ".mha", std::ios::out);
-    if (!fid_header) { std::cout << "Cannot open file!" << std::endl; }
+
+    // Open the .mha file and write the header.
+    std::ofstream fid_header(filepath + "/" + filename + ".mha", std::ios::out | std::ios::binary);
+    if (!fid_header) { std::cout << "Cannot open file!" << std::endl; return; }
     fid_header << "ObjectType = Image\n";
     fid_header << "NDims = 3\n";
     fid_header << "BinaryData = True\n";
-    fid_header
-      << "BinaryDataByteOrderMSB = False\n";   // True for big endian, False for little endian
+    fid_header << "BinaryDataByteOrderMSB = False\n";
     fid_header << "CompressedData = False\n";
     fid_header << "TransformMatrix = 1 0 0 0 1 0 0 0 1\n";
-    fid_header << "Origin = " << std::setprecision(9) << x0 << " " << y0 << " " << z0 << "\n";
+    fid_header << "Offset = " << std::setprecision(9) << x0 << " " << y0 << " " << z0 << "\n";
     fid_header << "CenterOfRotation = 0 0 0\n";
     fid_header << "AnatomicOrientation = RAI\n";
     fid_header << "DimSize = " << children->geo[0].get_nxyz().x << " "
                << children->geo[0].get_nxyz().y << " " << children->geo[0].get_nxyz().z << "\n";
-    ///< TODO: if R is double, MET_FLOAT should be MET_DOUBLE
     fid_header << "ElementType = MET_DOUBLE\n";
     fid_header << "HeaderSize = -1\n";
-    fid_header << "ElementSpacing = " << std::setprecision(9) << dx << " " << dy << " " << dz
-               << "\n";
+    fid_header << "ElementSpacing = " << std::setprecision(9) << dx << " " << dy << " " << dz << "\n";
     fid_header << "ElementDataFile = LOCAL\n";
+
+    // Write the binary data block directly after the header.
     fid_header.write(reinterpret_cast<const char*>(&dest[0]), length * sizeof(double));
     fid_header.close();
     if (!fid_header.good()) { std::cout << "Error occurred at writing time!" << std::endl; }
