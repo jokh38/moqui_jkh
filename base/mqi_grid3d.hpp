@@ -619,7 +619,7 @@ public:
 
         if (p.x >= xe_[0] && p.x <= xe_[dim_.x] && p.y >= ye_[0] && p.y <= ye_[dim_.y] &&
             p.z >= ze_[0] && p.z <= ze_[dim_.z]) {
-            its.cell = this->index(p);
+            its.cell = this->template index(p);
             its.dist = 0;
             return its;
         }
@@ -649,7 +649,7 @@ public:
         if (t_min > 0) {
             its.dist = t_min;
             mqi::vec3<R> p_on = p + d * its.dist;
-            its.cell          = this->index(p_on);
+            its.cell          = this->template index(p_on);
         }
 
         return its;
@@ -683,9 +683,8 @@ public:
     ///
     /// \param[in] p The physical point (x,y,z) to locate.
     /// \return A `vec3` containing the (i,j,k) index of the voxel.
-    CUDA_HOST_DEVICE
     template<typename S>
-    inline mqi::vec3<ijk_t>
+    CUDA_HOST_DEVICE inline mqi::vec3<ijk_t>
     index(const mqi::vec3<S>& p) {
         mqi::vec3<ijk_t> idx;
         idx.x = lower_bound_idx(xe_, dim_.x + 1, static_cast<R>(p.x)) - 1;

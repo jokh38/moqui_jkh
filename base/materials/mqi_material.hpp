@@ -59,6 +59,8 @@ public:
     R weight;
     ///< Number of electrons per molecule.
     R electrons;
+    ///< Charge-to-mass ratio (Z/A) of the material.
+    R Z_over_A;
     ///< Mean excitation energy (ionization potential) in eV. A key parameter for stopping power calculations.
     R Iev;
     ///< Square of the mean excitation energy, pre-calculated for efficiency.
@@ -94,6 +96,7 @@ public:
         Z                  = r.Z;
         weight             = r.weight;
         electrons          = r.electrons;
+        Z_over_A           = r.Z_over_A;
         Iev                = r.Iev;
         X0                 = r.X0;
         return *this;
@@ -208,6 +211,7 @@ public:
         this->Iev                = 78.0;   // Mean excitation energy for water in eV
         this->Iev_sq             = 78.0 * 78.0;
         this->Z = 18;   // Water is H2O, so 2*1 + 16 = 18 nucleons. Z_eff is different but this might be A_eff.
+        this->Z_over_A           = 10.0 / 18.0;   // For H2O: (2*1 + 1*8) / (2*1 + 1*16) = 10/18
         this->X0                 = 36.0863 * this->units.cm;   // Radiation length of water in mm
     }
 
@@ -237,6 +241,7 @@ public:
         this->Iev    = 85.7;   // Mean excitation energy for air in eV
         this->Iev_sq = 85.7 * 85.7;
         this->Z = 18;   // TODO: Effective Z for air is ~7.6, A is ~14.5. This seems incorrect.
+        this->Z_over_A = 7.6 / 14.5;   // Approximate effective Z/A for air
         this->X0 =
             (36.62 * this->units.cm) *
             this->rho_mass;   // TODO: This seems to be a scaling from water's radiation length per gram.
@@ -268,6 +273,7 @@ public:
         this->Iev    = 0;   // eV; TODO: Placeholder, should be ~330 eV for brass.
         this->Iev_sq = 0;
         this->Z      = 18;   // TODO: Placeholder, Z_eff for brass is ~29.6.
+        this->Z_over_A = 29.6 / 63.5;   // Approximate Z/A for brass (Cu-Zn alloy)
         this->X0     = 36.0863 * this->units.cm;   // TODO: Placeholder (water's value)
     }
 

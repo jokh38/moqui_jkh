@@ -1,0 +1,3 @@
+/mnt/c/MOQUI_SMC/moqui_jkh/build/CMakeFiles/tps_env.dir
+/mnt/c/MOQUI_SMC/moqui_jkh/build/CMakeFiles/edit_cache.dir
+/mnt/c/MOQUI_SMC/moqui_jkh/build/CMakeFiles/rebuild_cache.dir

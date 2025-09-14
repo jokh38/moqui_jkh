@@ -8,8 +8,8 @@
 #include <chrono>
 #include <iostream>
 
-#include <moqui/base/environments/mqi_tps_env.hpp>
-#include <moqui/base/mqi_cli.hpp>
+#include <base/environments/mqi_tps_env.hpp>
+#include <base/mqi_cli.hpp>
 
 #include "gdcmAttribute.h"
 #include "gdcmDataElement.h"

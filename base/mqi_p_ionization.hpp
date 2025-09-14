@@ -477,7 +477,7 @@ public:
 
         // 3. Calculate Multiple Coulomb Scattering (MCS) angle
         R P                    = rel.momentum();
-        R radiation_length_mat = this->radiation_length(mat.rho_mass);
+        R radiation_length_mat = mat.radiation_length();
 
         // Highland's formula for the variance of the projected scattering angle distribution
         R th_sq = ((this->Es / P) * (this->Es / P) / rel.beta_sq) * len / radiation_length_mat;
@@ -607,6 +607,27 @@ public:
         R step_length = length_in_water * this->units.water_density /
                         (mat.stopping_power_ratio(trk.vtx0.ke) * mat.rho_mass);
         trk.update_post_vertex_position(step_length);
+    }
+
+private:
+    /**
+     * @brief Calculates the variance of energy straggling for energy loss fluctuations.
+     * @param[in] rel Relativistic quantities of the particle.
+     * @param[in] mat The material properties.
+     * @param[in] length_in_water The path length in water-equivalent units.
+     * @return The variance for energy straggling (Bohr straggling formula).
+     * @details Implements Bohr straggling for energy loss fluctuations around the mean.
+     */
+    CUDA_HOST_DEVICE
+    R energy_straggling(const relativistic_quantities<R>& rel,
+                       const material_t<R>&              mat,
+                       R                                 length_in_water) {
+        // Bohr straggling variance formula: 4π * (re * me*c²)² * Z/A * ρ * t / β²
+        // where re is classical electron radius, Z/A is charge-to-mass ratio
+        const R re_mc2_sq = 0.0001535; // (re * me*c²)² in MeV²·cm²
+        R variance = 4.0 * mqi::pi * re_mc2_sq * mat.Z_over_A * mat.rho_mass * 
+                    length_in_water / (rel.beta * rel.beta);
+        return variance;
     }
 };
 
