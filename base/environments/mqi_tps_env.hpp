@@ -37,6 +37,8 @@
 #include <moqui/base/mqi_threads.hpp>
 #include <moqui/base/mqi_treatment_session.hpp>
 #include <moqui/base/scorers/mqi_scorer_energy_deposit.hpp>
+#include <kernel_functions/mqi_transport.hpp>
+#include <kernel_functions/mqi_transport_event.hpp>
 #include <valarray>
 
 namespace mqi
@@ -1274,8 +1276,26 @@ public:
         printf("Printing simulation specification.. : Histories per batch --> %d\n", histories_per_batch);
         cudaTextureObject_t stop_tex = this->tx->physics_data_->get_texture_object("stopping_power");
         cudaTextureObject_t xsec_tex = this->tx->physics_data_->get_texture_object("cross_section");
-        mc::transport_particles_patient<R><<<n_blocks, n_threads>>>(
-          worker_threads, mc::mc_world, mc::mc_vertices, histories_in_batch, d_tracked_particles, stop_tex, xsec_tex);
+
+        switch(this->tx->transport_model_) {
+            case transport_model::CONDENSED_HISTORY:
+                printf("Using Condensed History transport model.\n");
+                mc::transport_particles_patient<R><<<n_blocks, n_threads>>>(
+                  worker_threads, mc::mc_world, mc::mc_vertices, histories_in_batch, d_tracked_particles, stop_tex, xsec_tex);
+                break;
+            case transport_model::EVENT_BY_EVENT:
+                printf("Using Event-by-Event transport model.\n");
+                float max_sigma = this->tx->physics_data_->get_max_sigma();
+                mqi::transport_event_by_event_kernel<R><<<n_blocks, n_threads>>>(
+                    worker_threads, mc::mc_world, mc::mc_vertices, histories_in_batch, d_tracked_particles, stop_tex, xsec_tex, max_sigma);
+                break;
+            default:
+                // Fallback or error
+                printf("Unknown transport model selected. Defaulting to Condensed History.\n");
+                mc::transport_particles_patient<R><<<n_blocks, n_threads>>>(
+                  worker_threads, mc::mc_world, mc::mc_vertices, histories_in_batch, d_tracked_particles, stop_tex, xsec_tex);
+                break;
+        }
         cudaDeviceSynchronize();
         check_cuda_last_error("(transport particle table)");
 
