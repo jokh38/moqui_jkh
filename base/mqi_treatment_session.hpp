@@ -18,6 +18,7 @@
 #include <moqui/treatment_machines/mqi_treatment_machine_smc_gtr2.hpp> // SMC PBS dedicated nozzle
 #include <moqui/treatment_machines/mqi_treatment_machine_smc_gtr1.hpp> // SMC PBS multi-purpose nozzle
 #include <moqui/base/mqi_utils.hpp>
+#include <physics/mqi_physics_data.hpp>
 
 namespace mqi
 {
@@ -50,6 +51,9 @@ protected:
 
     ///< Pointer to the top-level DICOM dataset (RTIP or RTIBTR).
     mqi::dataset* mqi_ds_ = nullptr;
+
+    ///< Physics data manager for GPU textures
+    mqi::physics_data_manager* physics_data_ = nullptr;
 
 public:
     ///< Patient material properties.
@@ -132,6 +136,8 @@ public:
         if (!this->create_machine(machine_name_, mc_code, gantryNum)) {
             std::runtime_error("No MC machine is registered for " + machine_name_);
         }
+        physics_data_ = new mqi::physics_data_manager();
+        physics_data_->initialize();
     }
 
     /// @brief Creates and configures the treatment machine model.
@@ -191,6 +197,7 @@ public:
     ~treatment_session() {
         delete tx_machine_;
         delete mqi_ds_;
+        delete physics_data_;
     }
 
     /// @brief Retrieves a list of all beam names from the treatment plan.

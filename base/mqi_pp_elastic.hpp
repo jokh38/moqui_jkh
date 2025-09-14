@@ -284,9 +284,11 @@ public:
      */
     CUDA_HOST_DEVICE
     virtual R
-    cross_section(const relativistic_quantities<R>& rel, const material_t<R>& mat) {
+    cross_section(const relativistic_quantities<R>& rel, const material_t<R>& mat, cudaTextureObject_t tex) {
         R cs = 0;
-
+#if defined(__CUDACC__)
+        cs = tex2D<float>(tex, rel.Ek, 1.5f);
+#else
         if (rel.Ek >= Ek_min && rel.Ek <= Ek_max) {
             uint16_t idx0 = uint16_t((rel.Ek - Ek_min) / dEk);   //0 - 598
             uint16_t idx1 = idx0 + 1;
@@ -294,6 +296,7 @@ public:
             R        x1   = x0 + 0.5;
             cs            = mqi::intpl1d<R>(rel.Ek, x0, x1, cs_table[idx0], cs_table[idx1]);
         }
+#endif
         cs *= mat.rho_mass;
         return cs;
     }

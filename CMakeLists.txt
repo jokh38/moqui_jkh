@@ -17,7 +17,7 @@ set(CMAKE_CUDA_COMPILER /usr/local/cuda-11.7/bin/nvcc CACHE FILEPATH "CUDA 11.7 
 set(CUDATOOLkit_ROOT /usr/local/cuda-11.7 CACHE PATH "CUDA 11.7 root" FORCE)
 
 # Defines the main executable target and its source file.
-add_executable(tps_env tps_env.cpp)
+add_executable(tps_env tps_env.cpp physics/mqi_physics_data.cu)
 
 # Conditional compilation block based on the GPU variable.
 if (GPU)
@@ -54,6 +54,7 @@ endif ()
 # Add include directories for the project, GDCM, and CUDA.
 include_directories(
         ${PROJECT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/physics
         ${GDCM_INCLUDE_DIRS}
         ../../../
         ${CUDAToolkit_INCLUDE_DIRS}
