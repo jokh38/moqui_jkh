@@ -308,11 +308,8 @@ public:
      */
     CUDA_HOST_DEVICE
     virtual R
-    cross_section(const relativistic_quantities<R>& rel, const material_t<R>& mat, cudaTextureObject_t tex) {
+    cross_section(const relativistic_quantities<R>& rel, const material_t<R>& mat) {
         R cs = 0;
-#if defined(__CUDACC__)
-        cs = tex2D<float>(tex, rel.Ek, 0.5f);
-#else
         if (rel.Ek >= Ei && rel.Ek <= Ef) {
             // Find table indices for linear interpolation
             uint16_t idx0 = uint16_t((rel.Ek - Ei) / this->E_step);
@@ -322,7 +319,6 @@ public:
             // Linearly interpolate to find the cross-section at the particle's energy
             cs            = mqi::intpl1d<R>(rel.Ek, x0, x1, cs_table[idx0], cs_table[idx1]);
         }
-#endif
         // Convert from mm^2/g to cm^2/g, then multiply by density (g/cm^3) to get cm^-1
         cs *= 0.01 * mat.rho_mass;
         return cs;
@@ -337,11 +333,8 @@ public:
      */
     CUDA_HOST_DEVICE
     virtual inline R
-    dEdx(const relativistic_quantities<R>& rel, const material_t<R>& mat, cudaTextureObject_t tex) {
+    dEdx(const relativistic_quantities<R>& rel, const material_t<R>& mat) {
         R pw = 0;
-#if defined(__CUDACC__)
-        pw = tex2D<float>(tex, rel.Ek, 0.5f);
-#else
         if (rel.Ek >= Ei && rel.Ek <= Ef) {
             uint16_t idx0 = uint16_t((rel.Ek - Ei) / this->E_step);
             uint16_t idx1 = idx0 + 1;
@@ -352,7 +345,6 @@ public:
             pw = pw_table[0];   // For energies below the table, use the first value.
             assert(pw >= 0);
         }
-#endif
         // Return dE/dx in MeV/cm (pw is in MeV*cm^2/g, rho_mass is in g/cm^3)
         return -1.0 * pw * mat.rho_mass;
     }
@@ -570,12 +562,12 @@ public:
      */
     CUDA_HOST_DEVICE
     virtual void
-    last_step(track_t<R>& trk, material_t<R>& mat, cudaTextureObject_t tex) {
+    last_step(track_t<R>& trk, material_t<R>& mat) {
         mqi::relativistic_quantities<R> rel(trk.vtx0.ke, this->units.Mp);
         R                               length_in_water = 0;
         if (trk.dE > 0) {
             // Estimate remaining path length based on remaining energy and stopping power
-            length_in_water = -trk.dE / this->dEdx(rel, mat, tex);
+            length_in_water = -trk.dE / this->dEdx(rel, mat);
         }
         // Convert water-equivalent length back to physical length in the current material
         R step_length = length_in_water * this->units.water_density /
