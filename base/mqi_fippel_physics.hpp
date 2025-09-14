@@ -134,7 +134,9 @@ public:
              const R&          rho_mass,
              material_t<R>&    mat,
              const R&          distance_to_boundary,
-             bool              score_local_deposit) {
+             bool              score_local_deposit,
+             cudaTextureObject_t stopping_power_tex,
+             cudaTextureObject_t cross_section_tex) {
 
         // If particle energy is below the transport cutoff, deposit remaining energy and stop.
         if (trk.vtx0.ke < this->Tp_cut) {
@@ -142,7 +144,7 @@ public:
             assert(trk.vtx0.ke >= 0);
             trk.deposit(trk.vtx0.ke);
             trk.update_post_vertex_energy(trk.vtx0.ke);
-            p_ion.last_step(trk, mat);
+            p_ion.last_step(trk, mat, stopping_power_tex);
             trk.stop();
             return;
         }
@@ -150,25 +152,25 @@ public:
         mqi::relativistic_quantities<R> rel(trk.vtx0.ke, units.Mp);
         R                               length = 0.0;
         // Determine the maximum allowed step size based on energy loss and geometric constraints.
-        R max_loss_step    = max_energy_loss * -1.0 * rel.Ek / p_ion.dEdx(rel, mat);
+        R max_loss_step    = max_energy_loss * -1.0 * rel.Ek / p_ion.dEdx(rel, mat, stopping_power_tex);
         R current_min_step = this->max_step;
         current_min_step   = current_min_step * mat.stopping_power_ratio(rel.Ek) * mat.rho_mass / this->units.water_density;
         current_min_step  = (current_min_step <= max_loss_step) ? current_min_step : max_loss_step;
-        R max_loss_energy = -1.0 * current_min_step * p_ion.dEdx(rel, mat);
+        R max_loss_energy = -1.0 * current_min_step * p_ion.dEdx(rel, mat, stopping_power_tex);
 
         // Calculate the total cross-section (interaction probability) at the current energy
         // and at the energy after the maximum possible energy loss.
-        R cs1[4]          = { p_ion.cross_section(rel, mat),
-                     pp_e.cross_section(rel, mat),
-                     po_e.cross_section(rel, mat),
-                     po_i.cross_section(rel, mat) };
+        R cs1[4]          = { p_ion.cross_section(rel, mat, cross_section_tex),
+                     pp_e.cross_section(rel, mat, cross_section_tex),
+                     po_e.cross_section(rel, mat, cross_section_tex),
+                     po_i.cross_section(rel, mat, cross_section_tex) };
         R cs1_sum         = cs1[0] + cs1[1] + cs1[2] + cs1[3];
 
         mqi::relativistic_quantities<R> rel_de(trk.vtx0.ke - max_loss_energy, units.Mp);
-        R                               cs2[4]  = { p_ion.cross_section(rel_de, mat),
-                     pp_e.cross_section(rel_de, mat),
-                     po_e.cross_section(rel_de, mat),
-                     po_i.cross_section(rel_de, mat) };
+        R                               cs2[4]  = { p_ion.cross_section(rel_de, mat, cross_section_tex),
+                     pp_e.cross_section(rel_de, mat, cross_section_tex),
+                     po_e.cross_section(rel_de, mat, cross_section_tex),
+                     po_i.cross_section(rel_de, mat, cross_section_tex) };
         R                               cs2_sum = cs2[0] + cs2[1] + cs2[2] + cs2[3];
 
         // Use the larger of the two cross-sections for a conservative estimate.
