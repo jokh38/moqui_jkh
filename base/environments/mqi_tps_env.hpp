@@ -1297,7 +1297,7 @@ public:
         cudaTextureObject_t stop_tex = this->tx->get_physics_manager()->get_texture_object("stopping_power");
         cudaTextureObject_t xsec_tex = this->tx->get_physics_manager()->get_texture_object("cross_section");
         
-        switch(this->tx->transport_model_) {
+        switch(this->tx->get_transport_model()) {
             case transport_model::CONDENSED_HISTORY:
                 printf("Using Condensed History transport model.\n");
                 mc::transport_particles_patient<R><<<n_blocks, n_threads>>>(
@@ -1305,7 +1305,7 @@ public:
                 break;
             case transport_model::EVENT_BY_EVENT:
                 printf("Using Event-by-Event transport model.\n");
-                float max_sigma = this->tx->physics_data_->get_max_sigma();
+                float max_sigma = this->tx->get_physics_manager()->get_max_sigma();
                 mqi::transport_event_by_event_kernel<R><<<n_blocks, n_threads>>>(
                     worker_threads, mc::mc_world, mc::mc_vertices, histories_in_batch, d_tracked_particles, stop_tex, xsec_tex, max_sigma);
                 break;
