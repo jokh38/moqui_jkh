@@ -140,6 +140,9 @@ typedef enum {
 /// A global constant for the maximum step size (in mm) allowed in the simulation.
 const float max_step_global = 1.0;
 
+/// Mathematical constant pi
+const float pi = M_PI;
+
 }   // namespace mqi
 
 #endif

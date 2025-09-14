@@ -72,6 +72,9 @@ struct physics_constants
 
     // UNIT CONVERSION FACTORS
     const R mev_to_joule = 1.60218e-13;   ///< Conversion factor from MeV to Joules.
+    
+    // MATHEMATICAL CONSTANTS
+    const R pi = M_PI;   ///< Pi constant for mathematical calculations.
 };
 
 }   // namespace mqi

@@ -16,7 +16,7 @@ set(GPU ON)
 set(CMAKE_CUDA_COMPILER /usr/local/cuda-11.7/bin/nvcc CACHE FILEPATH "CUDA 11.7 nvcc" FORCE)
 set(CUDATOOLkit_ROOT /usr/local/cuda-11.7 CACHE PATH "CUDA 11.7 root" FORCE)
 set(MOQUI_DIR ../moqui)
-add_executable(tps_env tps_env.cpp ${MOQUI_DIR}/physics/mqi_physics_data.cu)
+add_executable(tps_env tps_env.cpp physics/mqi_physics_data.cu)
 
 if (GPU)
     message("Compile using nvcc")

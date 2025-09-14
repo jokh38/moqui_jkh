@@ -683,9 +683,8 @@ public:
     ///
     /// \param[in] p The physical point (x,y,z) to locate.
     /// \return A `vec3` containing the (i,j,k) index of the voxel.
-    CUDA_HOST_DEVICE
     template<typename S>
-    inline mqi::vec3<ijk_t>
+    CUDA_HOST_DEVICE inline mqi::vec3<ijk_t>
     index(const mqi::vec3<S>& p) {
         mqi::vec3<ijk_t> idx;
         idx.x = lower_bound_idx(xe_, dim_.x + 1, static_cast<R>(p.x)) - 1;

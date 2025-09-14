@@ -28,6 +28,7 @@ template<typename R>
 class relativistic_quantities
 {
 public:
+    R beta;       ///< The velocity of the particle as a fraction of the speed of light (v/c).
     R beta_sq;    ///< The square of the particle's velocity relative to the speed of light (v^2/c^2). Beta is the speed of the particle as a fraction of the speed of light.
     R gamma_sq;   ///< The square of the Lorentz factor.
     R gamma;      ///< The Lorentz factor, gamma = 1 / sqrt(1 - beta^2). It quantifies the time dilation and length contraction effects of special relativity.
@@ -65,6 +66,7 @@ public:
         gamma    = Et / Mp;       // gamma = E_total / m0*c^2
         gamma_sq = gamma * gamma;
         beta_sq = 1.0 - 1.0 / gamma_sq;   // From gamma = 1/sqrt(1-beta^2)
+        beta    = mqi::mqi_sqrt(beta_sq); // beta = sqrt(beta_sq)
         tau     = Ek / Mp;                // Kinetic energy in units of rest mass
 
         // Calculation of maximum energy transfer to a free electron
