@@ -619,7 +619,7 @@ public:
 
         if (p.x >= xe_[0] && p.x <= xe_[dim_.x] && p.y >= ye_[0] && p.y <= ye_[dim_.y] &&
             p.z >= ze_[0] && p.z <= ze_[dim_.z]) {
-            its.cell = this->index(p);
+            its.cell = this->template index(p);
             its.dist = 0;
             return its;
         }
@@ -649,7 +649,7 @@ public:
         if (t_min > 0) {
             its.dist = t_min;
             mqi::vec3<R> p_on = p + d * its.dist;
-            its.cell          = this->index(p_on);
+            its.cell          = this->template index(p_on);
         }
 
         return its;
