@@ -18,6 +18,25 @@
 namespace mqi
 {
 
+/// Helper functions to replace std:: versions for CUDA_HOST_DEVICE compatibility
+template<typename T>
+CUDA_HOST_DEVICE void
+swap(T& a, T& b) {
+    T temp = a;
+    a      = b;
+    b      = temp;
+}
+template<typename T>
+CUDA_HOST_DEVICE const T&
+max(const T& a, const T& b) {
+    return (a < b) ? b : a;
+}
+template<typename T>
+CUDA_HOST_DEVICE const T&
+min(const T& a, const T& b) {
+    return (b < a) ? b : a;
+}
+
 /// \struct intersect_t
 /// \brief Describes the result of a ray-tracing intersection with a grid voxel.
 ///
@@ -607,25 +626,25 @@ public:
 
         R t_min_x = (xe_[0] - p.x) / d.x;
         R t_max_x = (xe_[dim_.x] - p.x) / d.x;
-        if (t_min_x > t_max_x) std::swap(t_min_x, t_max_x);
+        if (t_min_x > t_max_x) mqi::swap(t_min_x, t_max_x);
 
         R t_min_y = (ye_[0] - p.y) / d.y;
         R t_max_y = (ye_[dim_.y] - p.y) / d.y;
-        if (t_min_y > t_max_y) std::swap(t_min_y, t_max_y);
+        if (t_min_y > t_max_y) mqi::swap(t_min_y, t_max_y);
 
         if ((t_min_x > t_max_y) || (t_min_y > t_max_x)) return its;
 
-        R t_min = std::max(t_min_x, t_min_y);
-        R t_max = std::min(t_max_x, t_max_y);
+        R t_min = mqi::max(t_min_x, t_min_y);
+        R t_max = mqi::min(t_max_x, t_max_y);
 
         R t_min_z = (ze_[0] - p.z) / d.z;
         R t_max_z = (ze_[dim_.z] - p.z) / d.z;
-        if (t_min_z > t_max_z) std::swap(t_min_z, t_max_z);
+        if (t_min_z > t_max_z) mqi::swap(t_min_z, t_max_z);
 
         if ((t_min > t_max_z) || (t_min_z > t_max)) return its;
 
-        t_min = std::max(t_min, t_min_z);
-        t_max = std::min(t_max, t_max_z);
+        t_min = mqi::max(t_min, t_min_z);
+        t_max = mqi::min(t_max, t_max_z);
 
         if (t_min > 0) {
             its.dist = t_min;
@@ -634,6 +653,27 @@ public:
         }
 
         return its;
+    }
+
+    /// \brief A CUDA_HOST_DEVICE compatible implementation of binary search (lower_bound).
+    /// \param[in] arr The sorted array to search in.
+    /// \param[in] len The length of the array.
+    /// \param[in] val The value to search for.
+    /// \return The index of the first element not less than `val`.
+    template<typename V>
+    CUDA_HOST_DEVICE ijk_t
+    lower_bound_idx(const V* arr, ijk_t len, V val) {
+        ijk_t low  = 0;
+        ijk_t high = len;
+        while (low < high) {
+            ijk_t mid = low + (high - low) / 2;
+            if (val >= arr[mid]) {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+        return low;
     }
 
     /// \brief Finds the 3D index of the voxel containing a given point.
@@ -648,9 +688,9 @@ public:
     inline mqi::vec3<ijk_t>
     index(const mqi::vec3<S>& p) {
         mqi::vec3<ijk_t> idx;
-        idx.x = std::lower_bound(xe_, xe_ + dim_.x + 1, static_cast<R>(p.x)) - xe_ - 1;
-        idx.y = std::lower_bound(ye_, ye_ + dim_.y + 1, static_cast<R>(p.y)) - ye_ - 1;
-        idx.z = std::lower_bound(ze_, ze_ + dim_.z + 1, static_cast<R>(p.z)) - ze_ - 1;
+        idx.x = lower_bound_idx(xe_, dim_.x + 1, static_cast<R>(p.x)) - 1;
+        idx.y = lower_bound_idx(ye_, dim_.y + 1, static_cast<R>(p.y)) - 1;
+        idx.z = lower_bound_idx(ze_, dim_.z + 1, static_cast<R>(p.z)) - 1;
 
         if (static_cast<R>(p.x) >= xe_[dim_.x]) idx.x = dim_.x - 1;
         if (static_cast<R>(p.y) >= ye_[dim_.y]) idx.y = dim_.y - 1;

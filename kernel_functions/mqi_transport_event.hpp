@@ -46,14 +46,14 @@ transport_event_by_event_kernel(mqi::thrd_t*      d_threads,
     __syncthreads();
 
     // Get the primary particle for this thread
-    d_threads[idx].rng.set_seed(d_threads[idx].rng.get_seed() + idx);
-    track_t<T> p(vertices[idx], &d_threads[idx].rng);
+    mqi::mqi_rng* rng = &d_threads[idx].rnd_generator;
+    track_t<T> p(vertices[idx]);
 
     // Main transport loop for the particle
-    while (p.is_alive()) {
+    while (!p.is_stopped()) {
         // 1. Woodcock Tracking: Determine distance to next potential interaction site
         // - Sample a random number 'r'
-        // - distance = -log(r) / max_sigma
+        // - distance = -mqi_ln(r) / max_sigma
         // - Move particle by 'distance'
         // - At the new position, get the material and its actual total cross-section (sigma_actual)
         // - Sample another random number 'r2'
@@ -72,12 +72,12 @@ transport_event_by_event_kernel(mqi::thrd_t*      d_threads,
         //      - secondary_stack[stack_top] = new_secondary_particle;
 
         // Placeholder for interaction physics
-        p.energy -= 0.1; // Dummy energy loss
+        p.vtx0.ke -= 0.1; // Dummy energy loss
 
 
         // 3. Check for particle death (energy below cutoff, left geometry)
-        if (p.energy <= 0.1) {
-            p.kill();
+        if (p.vtx0.ke <= 0.1) {
+            p.stop();
         }
 
         // 4. Process secondary particles from the stack
@@ -85,7 +85,7 @@ transport_event_by_event_kernel(mqi::thrd_t*      d_threads,
         //   and start transporting it.
         // - A sync mechanism is needed to ensure all threads in a block
         //   contribute to and pull from the same stack correctly.
-        if (!p.is_alive()) {
+        if (p.is_stopped()) {
             __syncthreads(); // Sync before accessing stack
             int current_top = atomicSub(&stack_top, 1);
             if (current_top >= 0) {
@@ -100,10 +100,10 @@ transport_event_by_event_kernel(mqi::thrd_t*      d_threads,
         // - Intelligent energy cutoff: cutoff value could be dependent on the material
         //   at the particle's current position.
 
-    } // end while(p.is_alive())
+    } // end while(!p.is_stopped())
 
     // Write final state of the particle back to global memory
-    tracks[idx] = p;
+    // tracks[idx] = p; // 'tracks' is not defined in the kernel signature
 }
 
 } // namespace mqi

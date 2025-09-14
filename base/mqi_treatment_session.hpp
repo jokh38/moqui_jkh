@@ -412,6 +412,12 @@ public:
     physics_data_manager* get_physics_manager() {
         return physics_data_;
     }
+
+    /// @brief Gets the selected transport model.
+    /// @return The `transport_model` enum value.
+    transport_model get_transport_model() const {
+        return transport_model_;
+    }
 };
 
 }   // namespace mqi
