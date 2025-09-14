@@ -47,6 +47,7 @@ include_directories(
         ${PROJECT_SOURCE_DIR}/physics
         ${GDCM_INCLUDE_DIRS}
         ../
+        ../moqui
         ${CUDAToolkit_INCLUDE_DIRS}
         /usr/local/cuda/include
 )

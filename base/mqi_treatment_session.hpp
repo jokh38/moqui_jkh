@@ -406,6 +406,12 @@ public:
     get_dataelement(gdcm::Tag tag) {
         return mqi_ds_[0][tag];
     }
+
+    /// @brief Gets the physics data manager.
+    /// @return A pointer to the `mqi::physics_data_manager` object.
+    physics_data_manager* get_physics_manager() {
+        return physics_data_;
+    }
 };
 
 }   // namespace mqi
