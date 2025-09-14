@@ -130,8 +130,6 @@ transport_particles_patient(mqi::thrd_t*      threads,
                             mqi::vertex_t<R>* vertices,
                             const uint32_t    n_vtx,
                             uint32_t*         tracked_particles,
-                            cudaTextureObject_t stopping_power_tex,
-                            cudaTextureObject_t cross_section_tex,
                             uint32_t*         scorer_offset_vector = nullptr,
                             bool              score_local_deposit  = true,
                             uint32_t          total_threads        = 1,   // # of CPU threads
@@ -233,9 +231,7 @@ transport_particles_patient(mqi::thrd_t*      threads,
                                     rho_mass,
                                     water,
                                     track.its.dist,
-                                    score_local_deposit,
-                                    stopping_power_tex,
-                                    cross_section_tex);
+                                    score_local_deposit);
 #endif
                     if (track.its.dist < 0) break;
                     for (uint8_t s = 0; s < nb_of_scorers; ++s) {
@@ -298,8 +294,6 @@ transport_particles_patient_seed(mqi::thrd_t*      threads,
                                  const uint32_t    n_vtx,
                                  uint32_t*         tracked_particles,
                                  int32_t*          transport_seed,
-                                 cudaTextureObject_t stopping_power_tex,
-                                 cudaTextureObject_t cross_section_tex,
                                  //                                 uint16_t*         mat_ids,
                                  uint32_t* scorer_offset_vector = nullptr,
                                  bool      score_local_deposit  = true,
@@ -405,9 +399,7 @@ transport_particles_patient_seed(mqi::thrd_t*      threads,
                                     rho_mass,
                                     water,
                                     track.its.dist,
-                                    score_local_deposit,
-                                    stopping_power_tex,
-                                    cross_section_tex);
+                                    score_local_deposit);
 #endif
                     if (track.its.dist < 0) break;
                     for (uint8_t s = 0; s < nb_of_scorers; ++s) {
