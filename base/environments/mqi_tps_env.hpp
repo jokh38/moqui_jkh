@@ -37,7 +37,14 @@
 #include <moqui/base/mqi_threads.hpp>
 #include <moqui/base/mqi_treatment_session.hpp>
 #include <moqui/base/scorers/mqi_scorer_energy_deposit.hpp>
+#include <kernel_functions/mqi_transport.hpp>
+#include <kernel_functions/mqi_transport_event.hpp>
 #include <valarray>
+
+#if defined(__CUDACC__)
+#include <thrust/sort.h>
+#include <thrust/device_ptr.h>
+#endif
 
 namespace mqi
 {
@@ -1248,6 +1255,20 @@ public:
         mc::upload_vertices(this->vertices, mc::mc_vertices, 0, histories_per_batch);
         cudaDeviceSynchronize();
         check_cuda_last_error("(upload vertices)");
+
+        // Sort particles by energy to improve memory access patterns and reduce thread divergence
+        printf("Sorting %lu particles by energy...\n", histories_in_batch);
+        try {
+            thrust::device_ptr<mqi::vertex_t<R>> d_vertices_ptr(mc::mc_vertices);
+            thrust::sort(thrust::device, d_vertices_ptr, d_vertices_ptr + histories_in_batch, mqi::by_energy_vtx<R>());
+            cudaDeviceSynchronize();
+            check_cuda_last_error("(thrust::sort)");
+            printf("Particle sorting complete.\n");
+        } catch (const thrust::system_error& e) {
+            fprintf(stderr, "Thrust sort failed: %s\n", e.what());
+            // Decide how to handle the error, maybe exit or continue without sorting
+        }
+
         uint32_t* d_scorer_offset_vector;
         if (scorer_offset_vector) {
             printf("Printing simulation specification.. : Histories per batch --> %d\n", histories_per_batch);
@@ -1272,10 +1293,30 @@ public:
                                cudaMemcpyHostToDevice));
         printf("Starting transportation call.. \n");
         printf("Printing simulation specification.. : Histories per batch --> %d\n", histories_per_batch);
+
         cudaTextureObject_t stop_tex = this->tx->get_physics_manager()->get_texture_object("stopping_power");
         cudaTextureObject_t xsec_tex = this->tx->get_physics_manager()->get_texture_object("cross_section");
-        mc::transport_particles_patient<R><<<n_blocks, n_threads>>>(
-          worker_threads, mc::mc_world, mc::mc_vertices, histories_in_batch, d_tracked_particles, stop_tex, xsec_tex);
+        
+        switch(this->tx->transport_model_) {
+            case transport_model::CONDENSED_HISTORY:
+                printf("Using Condensed History transport model.\n");
+                mc::transport_particles_patient<R><<<n_blocks, n_threads>>>(
+                  worker_threads, mc::mc_world, mc::mc_vertices, histories_in_batch, d_tracked_particles, stop_tex, xsec_tex);
+                break;
+            case transport_model::EVENT_BY_EVENT:
+                printf("Using Event-by-Event transport model.\n");
+                float max_sigma = this->tx->physics_data_->get_max_sigma();
+                mqi::transport_event_by_event_kernel<R><<<n_blocks, n_threads>>>(
+                    worker_threads, mc::mc_world, mc::mc_vertices, histories_in_batch, d_tracked_particles, stop_tex, xsec_tex, max_sigma);
+                break;
+            default:
+                // Fallback or error
+                printf("Unknown transport model selected. Defaulting to Condensed History.\n");
+                mc::transport_particles_patient<R><<<n_blocks, n_threads>>>(
+                  worker_threads, mc::mc_world, mc::mc_vertices, histories_in_batch, d_tracked_particles, stop_tex, xsec_tex);
+                break;
+        }
+
         cudaDeviceSynchronize();
         check_cuda_last_error("(transport particle table)");
 

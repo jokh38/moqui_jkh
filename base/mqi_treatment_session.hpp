@@ -23,6 +23,12 @@
 namespace mqi
 {
 
+///< Defines the GPU transport simulation model
+enum class transport_model {
+    CONDENSED_HISTORY, ///< Traditional condensed history simulation
+    EVENT_BY_EVENT     ///< Detailed event-by-event simulation
+};
+
 /// @class treatment_session
 /// @brief Manages a radiotherapy treatment session, acting as the primary interface to the Monte Carlo engine.
 ///
@@ -54,6 +60,9 @@ protected:
 
     ///< Physics data manager for GPU textures
     mqi::physics_data_manager* physics_data_ = nullptr;
+
+    ///< Selected transport model for the simulation
+    transport_model transport_model_;
 
 public:
     ///< Patient material properties.
@@ -138,6 +147,13 @@ public:
         }
         physics_data_ = new mqi::physics_data_manager();
         physics_data_->initialize();
+        transport_model_ = transport_model::CONDENSED_HISTORY; // Default model
+    }
+
+    /// @brief Sets the transport model for the simulation.
+    /// @param model The transport model to use.
+    void set_transport_model(transport_model model) {
+        transport_model_ = model;
     }
 
     /// @brief Creates and configures the treatment machine model.
