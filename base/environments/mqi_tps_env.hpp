@@ -1272,8 +1272,8 @@ public:
                                cudaMemcpyHostToDevice));
         printf("Starting transportation call.. \n");
         printf("Printing simulation specification.. : Histories per batch --> %d\n", histories_per_batch);
-        cudaTextureObject_t stop_tex = this->tx->physics_data_->get_texture_object("stopping_power");
-        cudaTextureObject_t xsec_tex = this->tx->physics_data_->get_texture_object("cross_section");
+        cudaTextureObject_t stop_tex = this->tx->get_physics_manager()->get_texture_object("stopping_power");
+        cudaTextureObject_t xsec_tex = this->tx->get_physics_manager()->get_texture_object("cross_section");
         mc::transport_particles_patient<R><<<n_blocks, n_threads>>>(
           worker_threads, mc::mc_world, mc::mc_vertices, histories_in_batch, d_tracked_particles, stop_tex, xsec_tex);
         cudaDeviceSynchronize();

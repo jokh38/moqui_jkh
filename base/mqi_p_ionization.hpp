@@ -304,6 +304,32 @@ public:
      * @param[in] rel Relativistic quantities of the proton.
      * @param[in] mat The material.
      * @return The cross-section in cm^2.
+     * @details This function overrides the pure virtual function from the base `interaction` class.
+     * It interpolates the cross-section from the pre-calculated table and scales by material density.
+     */
+    CUDA_HOST_DEVICE
+    virtual R
+    cross_section(const relativistic_quantities<R>& rel, const material_t<R>& mat) override {
+        R cs = 0;
+        if (rel.Ek >= Ei && rel.Ek <= Ef) {
+            // Find table indices for linear interpolation
+            uint16_t idx0 = uint16_t((rel.Ek - Ei) / this->E_step);
+            uint16_t idx1 = idx0 + 1;
+            R        x0   = this->Ei + idx0 * this->E_step;
+            R        x1   = x0 + this->E_step;
+            // Linearly interpolate to find the cross-section at the particle's energy
+            cs = mqi::intpl1d<R>(rel.Ek, x0, x1, cs_table[idx0], cs_table[idx1]);
+        }
+        // Convert from cm^2/g to cm^-1
+        cs *= mat.rho_mass;
+        return cs;
+    }
+
+    /**
+     * @brief Calculates the total cross-section for delta electron production.
+     * @param[in] rel Relativistic quantities of the proton.
+     * @param[in] mat The material.
+     * @return The cross-section in cm^2.
      * @details Interpolates the cross-section from the pre-calculated table and scales by material density.
      */
     CUDA_HOST_DEVICE
@@ -323,8 +349,8 @@ public:
             cs            = mqi::intpl1d<R>(rel.Ek, x0, x1, cs_table[idx0], cs_table[idx1]);
         }
 #endif
-        // Convert from mm^2/g to cm^2/g, then multiply by density (g/cm^3) to get cm^-1
-        cs *= 0.01 * mat.rho_mass;
+        // Convert from cm^2/g to cm^-1
+        cs *= mat.rho_mass;
         return cs;
     }
 

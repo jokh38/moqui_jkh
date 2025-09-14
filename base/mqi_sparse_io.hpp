@@ -54,7 +54,20 @@ save_npz(std::string filename,
  */
 template<typename T>
 void
-save_npz(std::string filename, std::string var_name, T* data, size_t shape, std::string mode);
+save_npz(std::string filename, std::string var_name, const T* data, size_t shape, std::string mode);
+
+/**
+ * @brief Saves a std::vector as a variable in a .npz file.
+ * @details This is a convenience wrapper around the pointer-based save_npz function.
+ * @tparam T The data type of the vector elements.
+ * @param filename The path to the output .npz file.
+ * @param var_name The name of the variable to be saved.
+ * @param data The vector of data to save.
+ * @param mode The file mode: "w" for write or "a" for append.
+ */
+template<typename T>
+void
+save_npz(std::string filename, std::string var_name, const std::vector<T>& data, std::string mode);
 
 /**
  * @brief Appends the bytes of a std::string to a character vector.
@@ -323,7 +336,7 @@ template<typename T>
 void
 mqi::io::save_npz(std::string filename,
                   std::string var_name,
-                  T*          data,
+                  const T*    data,
                   size_t      shape,
                   std::string mode) {
     std::fstream      fid_out;
@@ -382,7 +395,7 @@ mqi::io::save_npz(std::string filename,
 
     size_t   nbytes = shape * sizeof(T) + header.size();
     uint32_t crc    = crc32(0L, (uint8_t*) &header[0], header.size());
-    crc             = crc32(crc, (uint8_t*) data, shape * sizeof(T));
+    crc             = crc32(crc, (const uint8_t*) data, shape * sizeof(T));
 
     //build the local header
     std::vector<char> local_header;
@@ -437,6 +450,15 @@ mqi::io::save_npz(std::string filename,
                   sizeof(char) * global_header.size());
     fid_out.write(reinterpret_cast<const char*>(&footer[0]), sizeof(char) * footer.size());
     fid_out.close();
+}
+
+template<typename T>
+void
+mqi::io::save_npz(std::string               filename,
+                  std::string               var_name,
+                  const std::vector<T>&     data,
+                  std::string               mode) {
+    mqi::io::save_npz(filename, var_name, data.data(), data.size(), mode);
 }
 
 #endif

@@ -16,8 +16,7 @@ namespace mqi
 ///
 /// Many CUDA operations, especially kernel launches, are asynchronous. This means the
 /// CPU code continues to execute without waiting for the GPU to finish. If an error
--/// occurs on the GPU during this time, it won't be caught by checking the return
-+/// occurs on the GPU during this time, it won't be caught by checking the return
+/// occurs on the GPU during this time, it won't be caught by checking the return
 /// value of the kernel launch itself. `cudaGetLastError()` is used to retrieve such
 /// asynchronous errors.
 ///

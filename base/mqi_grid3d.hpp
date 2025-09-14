@@ -644,16 +644,17 @@ public:
     /// \param[in] p The physical point (x,y,z) to locate.
     /// \return A `vec3` containing the (i,j,k) index of the voxel.
     CUDA_HOST_DEVICE
+    template<typename S>
     inline mqi::vec3<ijk_t>
-    index(const mqi::vec3<R>& p) {
+    index(const mqi::vec3<S>& p) {
         mqi::vec3<ijk_t> idx;
-        idx.x = std::lower_bound(xe_, xe_ + dim_.x + 1, p.x) - xe_ - 1;
-        idx.y = std::lower_bound(ye_, ye_ + dim_.y + 1, p.y) - ye_ - 1;
-        idx.z = std::lower_bound(ze_, ze_ + dim_.z + 1, p.z) - ze_ - 1;
+        idx.x = std::lower_bound(xe_, xe_ + dim_.x + 1, static_cast<R>(p.x)) - xe_ - 1;
+        idx.y = std::lower_bound(ye_, ye_ + dim_.y + 1, static_cast<R>(p.y)) - ye_ - 1;
+        idx.z = std::lower_bound(ze_, ze_ + dim_.z + 1, static_cast<R>(p.z)) - ze_ - 1;
 
-        if (p.x >= xe_[dim_.x]) idx.x = dim_.x - 1;
-        if (p.y >= ye_[dim_.y]) idx.y = dim_.y - 1;
-        if (p.z >= ze_[dim_.z]) idx.z = dim_.z - 1;
+        if (static_cast<R>(p.x) >= xe_[dim_.x]) idx.x = dim_.x - 1;
+        if (static_cast<R>(p.y) >= ye_[dim_.y]) idx.y = dim_.y - 1;
+        if (static_cast<R>(p.z) >= ze_[dim_.z]) idx.z = dim_.z - 1;
 
         return idx;
     }
