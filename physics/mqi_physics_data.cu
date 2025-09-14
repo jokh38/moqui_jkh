@@ -10,7 +10,7 @@
 
 namespace mqi {
 
-physics_data_manager::physics_data_manager() {
+physics_data_manager::physics_data_manager() : max_sigma_(0.0f) {
     // Constructor
 }
 
@@ -71,6 +71,17 @@ void physics_data_manager::initialize() {
     memcpy(h_cross_sections.data() + width * 2, cs_po_e_g4_table, width * sizeof(float));
     memcpy(h_cross_sections.data() + width * 3, cs_po_i_g4_table, width * sizeof(float));
 
+    // Calculate max_sigma (maximum total cross-section)
+    // For now, we assume the tables represent total cross-sections for different interaction types.
+    // A more sophisticated approach would sum them up per energy bin if they were partial cross-sections.
+    float current_max = 0.0f;
+    for (const auto& val : h_cross_sections) {
+        if (val > current_max) {
+            current_max = val;
+        }
+    }
+    max_sigma_ = current_max;
+
     create_texture("cross_section", width, height, h_cross_sections.data());
 
     // Stopping power is a separate texture
@@ -83,6 +94,10 @@ cudaTextureObject_t physics_data_manager::get_texture_object(const std::string& 
         throw std::runtime_error("Texture object not found for data type: " + data_type);
     }
     return it->second;
+}
+
+float physics_data_manager::get_max_sigma() const {
+    return max_sigma_;
 }
 
 } // namespace mqi

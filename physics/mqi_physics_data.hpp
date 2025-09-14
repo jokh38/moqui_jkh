@@ -24,7 +24,13 @@ public:
     ///< Get the texture object for a given data type (e.g., "stopping_power")
     cudaTextureObject_t get_texture_object(const std::string& data_type) const;
 
+    ///< Get the maximum total cross-section for Woodcock tracking
+    float get_max_sigma() const;
+
 private:
+    ///< Maximum total cross-section (sigma)
+    float max_sigma_;
+
     ///< Creates a 2D CUDA array and texture object
     void create_texture(const std::string& data_type, int width, int height, const float* h_data);
 
