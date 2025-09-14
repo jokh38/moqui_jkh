@@ -34,5 +34,22 @@ struct vertex_t {
     }
 };
 
+/// @brief Functor to compare two vertices by kinetic energy in descending order for sorting.
+/// @tparam R The floating-point type for kinetic energy.
+template<typename R>
+struct by_energy_vtx
+{
+    /// @brief Overloaded operator to perform the comparison.
+    /// @param a The first vertex.
+    /// @param b The second vertex.
+    /// @return `true` if vertex `a` has higher or equal kinetic energy than vertex `b`.
+    __host__ __device__ bool
+    operator()(const vertex_t<R>& a, const vertex_t<R>& b)
+    {
+        // Sorts in descending order of kinetic energy
+        return a.ke > b.ke;
+    }
+};
+
 }   // namespace mqi
 #endif

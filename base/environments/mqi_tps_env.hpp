@@ -41,6 +41,11 @@
 #include <kernel_functions/mqi_transport_event.hpp>
 #include <valarray>
 
+#if defined(__CUDACC__)
+#include <thrust/sort.h>
+#include <thrust/device_ptr.h>
+#endif
+
 namespace mqi
 {
 /// \struct dicom_t
@@ -1250,6 +1255,20 @@ public:
         mc::upload_vertices(this->vertices, mc::mc_vertices, 0, histories_per_batch);
         cudaDeviceSynchronize();
         check_cuda_last_error("(upload vertices)");
+
+        // Sort particles by energy to improve memory access patterns and reduce thread divergence
+        printf("Sorting %lu particles by energy...\n", histories_in_batch);
+        try {
+            thrust::device_ptr<mqi::vertex_t<R>> d_vertices_ptr(mc::mc_vertices);
+            thrust::sort(thrust::device, d_vertices_ptr, d_vertices_ptr + histories_in_batch, mqi::by_energy_vtx<R>());
+            cudaDeviceSynchronize();
+            check_cuda_last_error("(thrust::sort)");
+            printf("Particle sorting complete.\n");
+        } catch (const thrust::system_error& e) {
+            fprintf(stderr, "Thrust sort failed: %s\n", e.what());
+            // Decide how to handle the error, maybe exit or continue without sorting
+        }
+
         uint32_t* d_scorer_offset_vector;
         if (scorer_offset_vector) {
             printf("Printing simulation specification.. : Histories per batch --> %d\n", histories_per_batch);
